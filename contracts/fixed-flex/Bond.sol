@@ -12,11 +12,12 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title Bond Contract
 /// @notice ERC1155 token representing bonds with lifecycle management
 /// @dev Inherits from ERC1155 for token functionality and Ownable for ownership management
-contract Bond is ERC1155, Ownable, IBond {
+contract Bond is ERC1155, Ownable, ReentrancyGuard, IBond {
     using SafeERC20 for IERC20;
 
     // Event declarations
@@ -66,7 +67,7 @@ contract Bond is ERC1155, Ownable, IBond {
     /// @dev Transfers purchase amount to the vault and owner, and handles referral if applicable
     /// @param quantity The number of bonds to purchase
     /// @param referrer The address of the referrer, if any
-    function purchase(uint40 quantity, address referrer) external {
+    function purchase(uint40 quantity, address referrer) external nonReentrant {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
 
         if (lifecycleTmp.purchased + quantity > lifecycleTmp.totalBonds) {
@@ -95,7 +96,7 @@ contract Bond is ERC1155, Ownable, IBond {
     /// @param bondIndexes An array of bond indexes to be redeemed
     /// @param quantity The number of bonds to redeem
     /// @param isCapitulation Indicates if the redemption is a capitulation (true) or regular redemption (false)
-    function redeem(uint40[] calldata bondIndexes, uint40 quantity, bool isCapitulation) external {
+    function redeem(uint40[] calldata bondIndexes, uint40 quantity, bool isCapitulation) external nonReentrant {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
         IERC20 payoutTokenTmp = payoutToken;
 
@@ -168,7 +169,7 @@ contract Bond is ERC1155, Ownable, IBond {
     /// @dev Reverts if the new total is less than the number of purchased bonds
     /// @dev Reverts if the bond is settled and the new total is more than the current total
     /// @dev Transfers excess payout tokens back to the owner if the new total supply reduces the required payout
-    function updateBondSupply(uint40 totalBonds) external onlyOwner {
+    function updateBondSupply(uint40 totalBonds) external onlyOwner nonReentrant {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
         IERC20 payoutTokenTmp = payoutToken;
 

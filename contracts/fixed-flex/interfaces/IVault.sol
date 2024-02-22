@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Types } from "../libraries/Types.sol";
+import {Types} from "../libraries/Types.sol";
 
 /// @title IVault Interface
 /// @notice Interface for the Vault contract managing bonds
 interface IVault {
-    
     /// @notice Initializes a bond with default fee settings
     /// @dev This function should be callable only by the issuer contract
     /// @param bondAddress The address of the bond to initialize

@@ -7,9 +7,9 @@ import {IIssuer} from "./interfaces/IIssuer.sol";
 import {IVault} from "./interfaces/IVault.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
 import {Validator} from "./libraries/helpers/Validator.sol";
+import {Ownership} from "./libraries/helpers/Ownership.sol";
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -17,7 +17,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 /// @title Bond Contract
 /// @notice ERC1155 token representing bonds with lifecycle management
 /// @dev Inherits from ERC1155 for token functionality and Ownable for ownership management
-contract Bond is ERC1155, Ownable, ReentrancyGuard, IBond {
+contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     using SafeERC20 for IERC20;
 
     // Event declarations
@@ -50,7 +50,7 @@ contract Bond is ERC1155, Ownable, ReentrancyGuard, IBond {
         uint256 initialPurchaseAmount,
         address initialPayoutTokenAddress,
         uint256 initialPayoutAmount
-    ) ERC1155("") Ownable(issuer) {
+    ) ERC1155("") Ownership(issuer) {
         Validator.validateAddress(issuer);
         Validator.validateAddress(initialPurchaseTokenAddress);
         Validator.validateAddress(initialPayoutTokenAddress);
@@ -212,14 +212,7 @@ contract Bond is ERC1155, Ownable, ReentrancyGuard, IBond {
 
         return (purchaseToken, purchaseAmount);
     }
-
-    /// @notice Disables the ability to renounce ownership of the contract
-    /// @dev Overrides the renounceOwnership function from OpenZeppelin's Ownable to prevent making the contract ownerless
-    /// @dev This action is irrecoverable and, by this override, intentionally disabled for security
-    function renounceOwnership() public view override onlyOwner {
-        Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
-    }
-
+    
     /// @notice Gets the URI for the ERC1155 tokens
     /// @dev Overrides the ERC1155 uri method to concatenate the base URI, contract address, and a fixed file extension for gas efficiency
     /// @param /* id */ The token ID (unused in this override)

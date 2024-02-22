@@ -6,13 +6,12 @@ import {IVault} from "./interfaces/IVault.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
 import {Validator} from "./libraries/helpers/Validator.sol";
 import {Bond} from "./Bond.sol";
-
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownership} from "./libraries/helpers/Ownership.sol";
 
 /// @title Issuer Contract
 /// @notice Contract for issuing new Bond contracts, allowing management of bonds' lifecycle
 /// @dev Inherits from Ownable for access control, implements IIssuer interface
-contract Issuer is Ownable, IIssuer {
+contract Issuer is Ownership, IIssuer {
     // Events declaration
     event BondIssued(address bondAddress);
     event VaultChanged(address vaultAddress);
@@ -23,7 +22,7 @@ contract Issuer is Ownable, IIssuer {
     IVault private _vault;
 
     /// @notice Constructor that sets the contract's owner
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownership(msg.sender) {}
 
     /// @notice Issues a new Bond contract
     /// @dev Emits a BondIssued event upon successful issuance

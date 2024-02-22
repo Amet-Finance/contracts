@@ -6,14 +6,14 @@ import {IBond} from "./interfaces/IBond.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
 import {Types} from "./libraries/Types.sol";
 import {Validator} from "./libraries/helpers/Validator.sol";
+import {Ownership} from "./libraries/helpers/Ownership.sol";
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title Vault Contract
 /// @notice Manages financial aspects of bonds including fees and referral rewards
-contract Vault is Ownable, ReentrancyGuard, IVault {
+contract Vault is Ownership, ReentrancyGuard, IVault {
     using SafeERC20 for IERC20;
 
     // Events declaration
@@ -44,7 +44,7 @@ contract Vault is Ownable, ReentrancyGuard, IVault {
         uint8 purchaseRate,
         uint8 earlyRedemptionRate,
         uint8 referrerRewardRate
-    ) Ownable(msg.sender) {
+    ) Ownership(msg.sender) {
         Validator.validateAddress(initialIssuerAddress);
         issuerAddress = initialIssuerAddress;
         issuanceFee = initialIssuanceFee;

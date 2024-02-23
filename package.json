@@ -7,10 +7,12 @@
     "test": "test"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "test:hardhat": "npx hardhat test"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@types/mocha": "^10.0.6",
     "hardhat": "^2.20.1"
   },
   "dependencies": {

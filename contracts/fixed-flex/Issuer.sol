@@ -32,25 +32,10 @@ contract Issuer is Ownership, IIssuer {
     /// @param purchaseAmount The amount of the purchase token required to buy the bond
     /// @param payoutTokenAddress The address of the token to be used for payouts
     /// @param payoutAmount The amount of the payout token to be paid out per bond
-    function issue(
-        uint40 totalBonds,
-        uint40 maturityInBlocks,
-        address purchaseTokenAddress,
-        uint256 purchaseAmount,
-        address payoutTokenAddress,
-        uint256 payoutAmount
-    ) external payable {
+    function issue(uint40 totalBonds, uint40 maturityInBlocks, address purchaseTokenAddress, uint256 purchaseAmount, address payoutTokenAddress, uint256 payoutAmount) external payable {
         if (_isPaused) Errors.revertOperation(Errors.Code.CONTRACT_PAUSED);
 
-        Bond bond = new Bond(
-            msg.sender,
-            totalBonds,
-            maturityInBlocks,
-            purchaseTokenAddress,
-            purchaseAmount,
-            payoutTokenAddress,
-            payoutAmount
-        );
+        Bond bond = new Bond(msg.sender, totalBonds, maturityInBlocks, purchaseTokenAddress, purchaseAmount, payoutTokenAddress, payoutAmount);
 
         address bondAddress = address(bond);
         _vault.initializeBond{value: msg.value}(bondAddress);

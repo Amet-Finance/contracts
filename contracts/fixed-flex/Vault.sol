@@ -10,6 +10,7 @@ import {Ownership} from "./libraries/helpers/Ownership.sol";
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title Vault Contract
 /// @notice Manages financial aspects of bonds including fees and referral rewards
@@ -23,7 +24,9 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     event FeesWithdrawn(address token, address to, uint256 amount);
     event ReferralRecord(address referrer, address bondAddress, uint40 quantity);
     event ReferrerRewardClaimed(address referrer, address bondAddress, uint256 amount);
+    event BondFeeDetailsUpdated(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate);
 
+    uint16 constant PERCENTAGE_DECIMAL = 1000;
     uint256 public issuanceFee;
     address public immutable issuerAddress;
     Types.BondFeeDetails public initialBondFeeDetails;
@@ -38,14 +41,10 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param purchaseRate The rate for bond purchases
     /// @param earlyRedemptionRate The rate for early bond redemptions
     /// @param referrerRewardRate The reward rate for referrers
-    constructor(
-        address initialIssuerAddress,
-        uint256 initialIssuanceFee,
-        uint8 purchaseRate,
-        uint8 earlyRedemptionRate,
-        uint8 referrerRewardRate
-    ) Ownership(msg.sender) {
+    constructor(address initialIssuerAddress, uint256 initialIssuanceFee, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) Ownership(msg.sender) {
         Validator.validateAddress(initialIssuerAddress);
+        _validateBondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate);
+
         issuerAddress = initialIssuerAddress;
         issuanceFee = initialIssuanceFee;
         initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
@@ -67,7 +66,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param referrer The address of the referrer
     /// @param quantity The quantity of bonds purchased
     function recordReferralPurchase(address operator, address referrer, uint40 quantity) external {
-        isBondInitiated(_bondFeeDetails[msg.sender]);
+        _isBondInitiated(_bondFeeDetails[msg.sender]);
         if (referrer != address(0) && referrer != operator) {
             _referrers[msg.sender][referrer].quantity += quantity;
             emit ReferralRecord(referrer, msg.sender, quantity);
@@ -77,18 +76,18 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @notice Claims referral rewards for a specified bond
     /// @param bondAddress The address of the bond for which to claim rewards
     function claimReferralRewards(address bondAddress) external nonReentrant {
-        isAddressUnrestricted(msg.sender);
+        _isAddressUnrestricted(msg.sender);
         Types.ReferrerRecord storage referrer = _referrers[bondAddress][msg.sender];
         Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
         IBond bond = IBond(bondAddress);
 
-        isBondInitiated(bondFeeDetails);
+        _isBondInitiated(bondFeeDetails);
 
         if (referrer.isRepaid || referrer.quantity == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
 
         (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getSettledPurchaseDetails();
         referrer.isRepaid = true;
-        uint256 rewardAmount = (referrer.quantity * purchaseAmount * bondFeeDetails.referrerRewardRate) / 1000;
+        uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);
         emit ReferrerRewardClaimed(msg.sender, bondAddress, rewardAmount);
     }
@@ -98,10 +97,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param earlyRedemptionRate The rate for early bond redemptions
     /// @param referrerRewardRate The reward rate for referrers
     /// @dev Emits a InitialFeeDetailsUpdated event upon successful update
-    function updateInitialFees(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate)
-        external
-        onlyOwner
-    {
+    function updateInitialFees(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
         initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
         emit InitialFeeDetailsUpdated(purchaseRate, earlyRedemptionRate, referrerRewardRate);
     }
@@ -114,16 +110,21 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         emit IssuanceFeeChanged(newIssuanceFee);
     }
 
-    /// @notice Checks if the referrer is restricted
-    /// @param referrer The address of the referrer to validate
-    function isAddressUnrestricted(address referrer) private view {
-        if (_restrictedAddresses[referrer]) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
-    }
+    /// @notice Updates the fee details for a specific bond
+    /// @dev Can only be called by the contract owner
+    /// @param bondAddress The address of the bond to update fee details for
+    /// @param purchaseRate The new purchase rate to be set
+    /// @param earlyRedemptionRate The new early redemption rate to be set
+    /// @param referrerRewardRate The new referrer reward rate to be set
+    function updateBondFeeDetails(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
+        Types.BondFeeDetails storage bondFeeDetails = _bondFeeDetails[bondAddress];
+        _isBondInitiated(bondFeeDetails);
 
-    /// @notice Checks if the bond is intiated
-    /// @param bond The address of the bond
-    function isBondInitiated(Types.BondFeeDetails memory bond) private pure {
-        if (!bond.isInitiated) Errors.revertOperation(Errors.Code.CONTRACT_NOT_INITIATED);
+        bondFeeDetails.purchaseRate = purchaseRate;
+        bondFeeDetails.earlyRedemptionRate = earlyRedemptionRate;
+        bondFeeDetails.referrerRewardRate = referrerRewardRate;
+
+        emit BondFeeDetailsUpdated(bondAddress, purchaseRate, earlyRedemptionRate, referrerRewardRate);
     }
 
     /// @notice Blocks or unblocks an address for referral rewards
@@ -145,7 +146,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         Validator.validateAddress(toAddress);
 
         if (token == address(0)) {
-            (bool success,) = toAddress.call{value: amount}("");
+            (bool success, ) = toAddress.call{value: amount}("");
             if (!success) Errors.revertOperation(Errors.Code.ACTION_INVALID);
         } else {
             IERC20(token).safeTransfer(toAddress, amount);
@@ -159,5 +160,29 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @return The fee details of the specified bond
     function getBondFeeDetails(address bondAddress) external view returns (Types.BondFeeDetails memory) {
         return _bondFeeDetails[bondAddress];
+    }
+
+    /// @notice Checks if the referrer is restricted
+    /// @param referrer The address of the referrer to validate
+    function _isAddressUnrestricted(address referrer) private view {
+        if (_restrictedAddresses[referrer]) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+    }
+
+    /// @notice Checks if the bond is intiated
+    /// @param bond The address of the bond
+    function _isBondInitiated(Types.BondFeeDetails memory bond) private pure {
+        if (!bond.isInitiated) Errors.revertOperation(Errors.Code.CONTRACT_NOT_INITIATED);
+    }
+
+    /// @notice Validates the bond fee details before updating them
+    /// @param purchaseRate The purchase rate to be validated
+    /// @param earlyRedemptionRate The early redemption rate to be validated
+    /// @param referrerRewardRate The referrer reward rate to be validated
+    /// @dev This function could be expanded with more complex validation logic as needed
+    function _validateBondFeeDetails(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) private pure {
+        // Range from 0 - 1000: 50 for 5%
+        if (purchaseRate >= PERCENTAGE_DECIMAL) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+        if (earlyRedemptionRate >= PERCENTAGE_DECIMAL) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+        if (referrerRewardRate >= PERCENTAGE_DECIMAL || referrerRewardRate > purchaseRate) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
     }
 }

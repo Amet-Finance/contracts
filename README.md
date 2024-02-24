@@ -11,3 +11,9 @@ REPORT_GAS=true npx hardhat test
 npx hardhat node
 npx hardhat run scripts/deploy.ts
 ```
+
+
+
+### Problems:
+
+- once the contract is settled and there's excess payout token, it should send to the owner

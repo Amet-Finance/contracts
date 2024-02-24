@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 library Errors {
-   
     enum Code {
         CONTRACT_PAUSED,
         FEE_INVALID,
@@ -14,7 +13,7 @@ library Errors {
         INSUFFICIENT_PAYOUT,
         REDEEM_BEFORE_MATURITY
     }
-    
+
     error OperationFailed(Code code);
 
     function revertOperation(Code code) internal pure {

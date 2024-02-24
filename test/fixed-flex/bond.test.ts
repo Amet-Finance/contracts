@@ -1,10 +1,10 @@
-import {deployIssuer, deployVault} from "./utils/deploy";
+import {deployIssuer, deployVault, revertOperation} from "./utils/deploy";
 import {ethers} from "hardhat";
 import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {expect} from "chai";
 import {ContractRunner} from "ethers";
-import {Bond__factory, CustomToken__factory, Issuer__factory} from "../typechain-types";
+import {Bond__factory, CustomToken__factory, Issuer__factory} from "../../typechain-types";
 import {mineBlocks} from "./utils/block";
 
 describe("Bond", () => {
@@ -56,18 +56,6 @@ describe("Bond", () => {
         throw Error("Failed to issue bond")
     }
 
-    async function revertOperation(bond: any, fn: Promise<any>, customError?: string, code?: any) {
-        const test = expect(fn).to.be;
-        if (customError) {
-            if (code) {
-                await test.revertedWithCustomError(bond, customError).withArgs(code);
-            } else {
-                await test.revertedWithCustomError(bond, customError)
-            }
-        } else {
-            await test.reverted;
-        }
-    }
 
     before(async () => {
         const issuer = await deployIssuer();

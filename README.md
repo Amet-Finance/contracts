@@ -1,19 +1,5 @@
-# Sample Hardhat Project
+# Amet Finance
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+## Overview
 
-Try running some of the following tasks:
-
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
-```
-
-
-
-### Problems:
-
-- once the contract is settled and there's excess payout token, it should send to the owner
+Amet Finance is a blockchain protocol designed for effectively issuing and managing on-chain bonds.

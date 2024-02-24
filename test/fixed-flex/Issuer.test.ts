@@ -1,8 +1,8 @@
 import {ethers} from "hardhat";
 import {expect} from "chai"
-import {deployIssuer, deployVault} from "./utils/deploy";
+import {deployIssuer, deployVault, revertOperation} from "./utils/deploy";
 import {generateWallet} from "./utils/address";
-import {BondFeeConstants} from "./utils/constants";
+import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 
 describe("Issuer", () => {
     it("Deploying", async () => {
@@ -21,20 +21,20 @@ describe("Issuer", () => {
         const isPausedAfterChange = await contract.isPaused()
         expect(isPausedAfterChange).to.equal(true);
 
-        await expect(contract.connect(randomAddress).changePausedState(true)).to.be.reverted;
+        await revertOperation(contract, contract.connect(randomAddress).changePausedState(true), OwnableUnauthorizedAccount)
     })
 
     it("Change Vault", async () => {
         const [_, randomAddress] = await ethers.getSigners();
         const contract = await deployIssuer()
-        await expect(contract.changeVault(ethers.ZeroAddress)).to.be.reverted;
+        await revertOperation(contract, contract.changeVault(ethers.ZeroAddress), OperationFailed, OperationCodes.ADDRESS_INVALID)
 
         const vaultAddress = generateWallet().address;
         await contract.changeVault(vaultAddress);
         const vault = await contract.vault()
 
-        const newContract = contract.connect(randomAddress);
-        await expect(newContract.changeVault(vaultAddress)).to.be.reverted;
+
+        await revertOperation(contract, contract.connect(randomAddress).changeVault(vaultAddress), OwnableUnauthorizedAccount)
         expect(vault).to.equal(vaultAddress);
     })
 

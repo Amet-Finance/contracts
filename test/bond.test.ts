@@ -1,17 +1,16 @@
 import {deployIssuer, deployVault} from "./utils/deploy";
 import {ethers} from "hardhat";
-// import {Bond__factory, CustomToken__factory} from "../typechain-types";
-import {BondFeeConstants} from "./utils/constants";
+import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {expect} from "chai";
 import {ContractRunner} from "ethers";
-import {Bond__factory, CustomToken__factory} from "../typechain-types";
+import {Bond__factory, CustomToken__factory, Issuer__factory} from "../typechain-types";
 import {mineBlocks} from "./utils/block";
 
 describe("Bond", () => {
 
 
-    let bondAddress: string;
+    let issuerAddress: string
     let tokenAddress: string;
     let deployer: HardhatEthersSigner;
     const bondConfig = {
@@ -21,7 +20,7 @@ describe("Bond", () => {
         payoutAmount: BigInt(15 * 1e18)
     }
 
-    function getBond(runner?: ContractRunner | null | undefined) {
+    function getBond(bondAddress: string, runner?: ContractRunner | null | undefined) {
         if (!bondAddress) throw Error("NOT INITIATED");
         return Bond__factory.connect(bondAddress, runner || deployer)
     }
@@ -31,12 +30,9 @@ describe("Bond", () => {
         return CustomToken__factory.connect(tokenAddress, runner || deployer)
     }
 
-
-    before(async () => {
-        const issuer = await deployIssuer();
-        const vault = await deployVault(issuer.target);
-        await issuer.changeVault(vault.target);
-        const token = await ethers.deployContract("CustomToken", [])
+    async function deployBond() {
+        const issuer = Issuer__factory.connect(issuerAddress, deployer);
+        const token = getToken()
         const bondTransaction = await issuer.issue(
             bondConfig.totalBonds,
             bondConfig.maturityPeriodInBlocks,
@@ -45,27 +41,55 @@ describe("Bond", () => {
             token.target,
             bondConfig.payoutAmount, {value: BondFeeConstants.initialIssuanceFee});
         const txRecipient = await ethers.provider.getTransactionReceipt(bondTransaction.hash);
-        if (txRecipient?.logs) {
-            for (const log of txRecipient.logs) {
-                const decodedData = issuer.interface.parseLog({
-                    topics: [...log.topics],
-                    data: log.data
-                });
-                if (decodedData?.name === "BondIssued") {
-                    bondAddress = decodedData.args.bondAddress
-                }
+        if (!txRecipient?.logs) throw Error("Failed to deploy")
+
+        for (const log of txRecipient.logs) {
+            const decodedData = issuer.interface.parseLog({
+                topics: [...log.topics],
+                data: log.data
+            });
+            if (decodedData?.name === "BondIssued") {
+                return getBond(decodedData.args.bondAddress)
             }
         }
+
+        throw Error("Failed to issue bond")
+    }
+
+    async function revertOperation(bond: any, fn: Promise<any>, customError?: string, code?: any) {
+        const test = expect(fn).to.be;
+        if (customError) {
+            if (code) {
+                await test.revertedWithCustomError(bond, customError).withArgs(code);
+            } else {
+                await test.revertedWithCustomError(bond, customError)
+            }
+        } else {
+            await test.reverted;
+        }
+    }
+
+    before(async () => {
+        const issuer = await deployIssuer();
+        issuerAddress = issuer.target.toString()
+
+        const vault = await deployVault(issuer.target);
+        await issuer.changeVault(vault.target);
+
+        const token = await ethers.deployContract("CustomToken", [])
         tokenAddress = token.target.toString();
+
         const signers = await ethers.getSigners();
         deployer = signers[0];
+
     })
 
     it("Purchase", async () => {
-        const bond = getBond();
+        const bond = await deployBond();
         const token = getToken();
 
-        await expect(bond.purchase(BigInt(1), ethers.ZeroAddress)).to.be.reverted;
+        // ERC20InsufficientAllowance
+        await revertOperation(bond, bond.purchase(BigInt(1), ethers.ZeroAddress))
 
         await token.approve(bond.target.toString(), BigInt(30) * bondConfig.purchaseAmount);
 
@@ -77,19 +101,29 @@ describe("Bond", () => {
         const lifecycle = await bond.lifecycle();
         expect(lifecycle.purchased).to.be.equal(BigInt(5))
 
-        await expect(bond.purchase(BigInt(150), ethers.ZeroAddress)).to.be.reverted;
+        await revertOperation(bond, bond.purchase(BigInt(150), ethers.ZeroAddress), OperationFailed, OperationCodes.ACTION_INVALID);
     })
 
     it("Redeem", async () => {
-        const bond = getBond();
+        const bond = await deployBond();
         const token = getToken();
 
+        await token.approve(bond.target.toString(), BigInt(30) * bondConfig.purchaseAmount);
+
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+
         // INSUFFICIENT_PAYOUT
-        await expect(bond.redeem([BigInt(0)], BigInt(1), false)).to.be.reverted;
+        const promiseI = bond.redeem([BigInt(0)], BigInt(1), false)
+        await revertOperation(bond, promiseI, OperationFailed, OperationCodes.INSUFFICIENT_PAYOUT)
         await token.transfer(bond.target, BigInt(4) * bondConfig.payoutAmount);
 
         // REDEEM_BEFORE_MATURITY
-        await expect(bond.redeem([BigInt(0)], BigInt(1), false)).to.be.reverted;
+        const promiseR = bond.redeem([BigInt(0)], BigInt(1), false)
+        await revertOperation(bond, promiseR, OperationFailed, OperationCodes.REDEEM_BEFORE_MATURITY)
 
         // CAPITULATION_REDEEM
         await bond.redeem([BigInt(3)], BigInt(1), true);
@@ -101,26 +135,94 @@ describe("Bond", () => {
         expect(lifecycle.redeemed).to.be.equal(BigInt(2));
 
         //ACTION_INVALID
-        await expect(bond.redeem([BigInt(1)], BigInt(2), false)).to.be.reverted;
+        const promiseA = bond.redeem([BigInt(1)], BigInt(2), false);
+        await revertOperation(bond, promiseA, OperationFailed, OperationCodes.ACTION_INVALID)
+    })
+
+    it("Withdraw Excess Payout", async () => {
+        const [_, random] = await ethers.getSigners();
+        const bond = await deployBond();
+        const token = getToken();
+
+        // ONLY_OWNER
+        const promiseO = bond.connect(random).withdrawExcessPayout()
+        await revertOperation(bond, promiseO, OwnableUnauthorizedAccount);
+
+        // ACTION_BLOCKED
+        const promiseA = bond.withdrawExcessPayout()
+        await revertOperation(bond, promiseA, OperationFailed, OperationCodes.ACTION_BLOCKED)
+
+        await token.transfer(bond.target, (bondConfig.totalBonds + BigInt(10)) * bondConfig.payoutAmount);
+        await bond.withdrawExcessPayout();
     })
 
     it("Settle", async () => {
         const [_, random] = await ethers.getSigners();
-        const bondRandom = getBond(random);
+        const bond = await deployBond()
         const token = getToken();
 
-        await expect(bondRandom.settle()).to.be.reverted;
+        // ONLY_OWNER
+        await revertOperation(bond, bond.connect(random).settle(), OwnableUnauthorizedAccount)
 
-        const bond = getBond()
         // INSUFFICIENT_PAYOUT
-        await expect(bond.settle()).to.be.reverted;
-        await token.transfer(bond.target, bondConfig.payoutAmount * bondConfig.totalBonds)
+        await revertOperation(bond, bond.settle(), OperationFailed, OperationCodes.INSUFFICIENT_PAYOUT)
 
+        await token.transfer(bond.target, bondConfig.payoutAmount * bondConfig.totalBonds)
         await bond.settle();
     })
 
+    it("Update Bond Supply", async () => {
+        const [_, random] = await ethers.getSigners();
+        const bond = await deployBond()
+        const token = getToken();
+
+        // ONLY_OWNER
+        await revertOperation(bond, bond.connect(random).updateBondSupply(1), OwnableUnauthorizedAccount)
+
+        // ACTION_BLOCKED for lifecycleTmp.purchased > totalBonds
+        await token.approve(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
+        await bond.purchase(BigInt(10), ethers.ZeroAddress);
+        await revertOperation(bond, bond.updateBondSupply(BigInt(1)), OperationFailed, OperationCodes.ACTION_BLOCKED)
+
+        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
+        await bond.settle()
+
+        // lifecycleTmp.isSettled && totalBonds > lifecycleTmp.totalBonds
+        await revertOperation(bond, bond.updateBondSupply(BigInt(1) + BigInt(bondConfig.totalBonds)), OperationFailed, OperationCodes.ACTION_BLOCKED)
+
+        bondConfig.totalBonds = BigInt(50)
+        await bond.updateBondSupply(BigInt(50));
+    })
+
+    it("Decrease Maturity Period", async () => {
+        const [_, random] = await ethers.getSigners();
+        const bond = await deployBond()
+
+        // ONLY_OWNER
+        await revertOperation(bond, bond.connect(random).decreaseMaturityPeriod(1), OwnableUnauthorizedAccount)
+
+        // maturityPeriodInBlocks >= lifecycleTmp.maturityPeriodInBlocks ACTION_BLOCKED
+        await revertOperation(bond, bond.decreaseMaturityPeriod(BigInt(4000)), OperationFailed, OperationCodes.ACTION_BLOCKED)
+
+        await bond.decreaseMaturityPeriod(bondConfig.maturityPeriodInBlocks - BigInt(1));
+    })
+
+    it("Get Settled Purchase Details", async () => {
+        const bond = await deployBond()
+        const token = getToken();
+
+        await revertOperation(bond, bond.getSettledPurchaseDetails(), OperationFailed, OperationCodes.ACTION_BLOCKED)
+        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
+        await bond.settle();
+        await token.approve(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
+        await bond.purchase(bondConfig.totalBonds, ethers.ZeroAddress)
+
+        await bond.getSettledPurchaseDetails();
+    })
+
+
     it("URI", async () => {
-        const bond = getBond();
+        const bond = await deployBond();
         const uri = await bond.uri(0);
         expect(uri).to.include("https://storage.amet.finance/contracts/")
     })

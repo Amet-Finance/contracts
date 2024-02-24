@@ -199,9 +199,10 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         Types.BondLifecycle memory lifecycleTmp = lifecycle;
         IERC20 payoutTokenTmp = payoutToken;
 
-        uint256 totalPayout = payoutAmount * lifecycleTmp.totalBonds;
+        // calculate for purchase but not redeemed bonds + potential purchases
+        uint256 totalPayout = (lifecycleTmp.totalBonds - lifecycleTmp.redeemed) * payoutAmount;
         uint256 currentBalance = payoutTokenTmp.balanceOf(address(this));
-        if (currentBalance > totalPayout) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+        if (currentBalance <= totalPayout) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
 
         uint256 excessPayout = currentBalance - totalPayout;
         payoutTokenTmp.safeTransfer(owner(), excessPayout);
@@ -217,7 +218,7 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     function decreaseMaturityPeriod(uint40 maturityPeriodInBlocks) external onlyOwner {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
         if (maturityPeriodInBlocks >= lifecycleTmp.maturityPeriodInBlocks) {
-            Errors.revertOperation(Errors.Code.ACTION_INVALID);
+            Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
         }
 
         lifecycleTmp.maturityPeriodInBlocks = maturityPeriodInBlocks;

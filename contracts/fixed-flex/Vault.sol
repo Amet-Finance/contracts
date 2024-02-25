@@ -26,7 +26,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     event ReferrerRewardClaimed(address referrer, address bondAddress, uint256 amount);
     event BondFeeDetailsUpdated(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate);
 
-    uint16 constant PERCENTAGE_DECIMAL = 1000;
+    uint16 private constant _PERCENTAGE_DECIMAL = 1000;
     uint256 public issuanceFee;
     address public immutable issuerAddress;
     Types.BondFeeDetails public initialBondFeeDetails;
@@ -87,7 +87,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
 
         (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getSettledPurchaseDetails();
         referrer.isRepaid = true;
-        uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, PERCENTAGE_DECIMAL);
+        uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, _PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);
         emit ReferrerRewardClaimed(msg.sender, bondAddress, rewardAmount);
     }

@@ -43,7 +43,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param referrerRewardRate The reward rate for referrers
     constructor(address initialIssuerAddress, uint256 initialIssuanceFee, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) Ownership(msg.sender) {
         Validator.validateAddress(initialIssuerAddress);
-        _validateBondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate);
+        _validateBondFeeDetails(purchaseRate, referrerRewardRate);
 
         issuerAddress = initialIssuerAddress;
         issuanceFee = initialIssuanceFee;
@@ -92,22 +92,23 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         emit ReferrerRewardClaimed(msg.sender, bondAddress, rewardAmount);
     }
 
-    /// @notice Updates the initial fee settings for new bonds
-    /// @param purchaseRate The rate for bond purchases
-    /// @param earlyRedemptionRate The rate for early bond redemptions
-    /// @param referrerRewardRate The reward rate for referrers
-    /// @dev Emits a InitialFeeDetailsUpdated event upon successful update
-    function updateInitialFees(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
-        initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
-        emit InitialFeeDetailsUpdated(purchaseRate, earlyRedemptionRate, referrerRewardRate);
-    }
-
     /// @notice Updates the issuance fee for bonds
     /// @param newIssuanceFee The new fee amount for issuing bonds
     /// @dev Emits a IssuanceFeeChanged event
     function updateIssuanceFee(uint256 newIssuanceFee) external onlyOwner {
         issuanceFee = newIssuanceFee;
         emit IssuanceFeeChanged(newIssuanceFee);
+    }
+
+    /// @notice Updates the initial fee settings for new bonds
+    /// @param purchaseRate The rate for bond purchases
+    /// @param earlyRedemptionRate The rate for early bond redemptions
+    /// @param referrerRewardRate The reward rate for referrers
+    /// @dev Emits a InitialFeeDetailsUpdated event upon successful update
+    function updateInitialFees(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
+        _validateBondFeeDetails(purchaseRate, referrerRewardRate);
+        initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
+        emit InitialFeeDetailsUpdated(purchaseRate, earlyRedemptionRate, referrerRewardRate);
     }
 
     /// @notice Updates the fee details for a specific bond
@@ -119,6 +120,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     function updateBondFeeDetails(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
         Types.BondFeeDetails storage bondFeeDetails = _bondFeeDetails[bondAddress];
         _isBondInitiated(bondFeeDetails);
+        _validateBondFeeDetails(purchaseRate, referrerRewardRate);
 
         bondFeeDetails.purchaseRate = purchaseRate;
         bondFeeDetails.earlyRedemptionRate = earlyRedemptionRate;
@@ -131,7 +133,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param referrer The address of the referrer to be blocked or unblocked
     /// @param status True to block the address, false to unblock
     function updateRestrictionStatus(address referrer, bool status) external onlyOwner {
-        Validator.validateAddress(referrer);
         _restrictedAddresses[referrer] = status;
         emit RestrictionStatusUpdated(referrer, status);
     }
@@ -168,6 +169,14 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         if (_restrictedAddresses[referrer]) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
     }
 
+    /// @notice Checks if an address is restricted
+    /// @dev Returns true if the address is in the restricted list, false otherwise
+    /// @param referrerAddress The address to check for restriction status
+    /// @return isRestricted Boolean indicating whether the address is restricted
+    function isAddressRestricted(address referrerAddress) external view returns (bool isRestricted) {
+        return _restrictedAddresses[referrerAddress];
+    }
+
     /// @notice Checks if the bond is intiated
     /// @param bond The address of the bond
     function _isBondInitiated(Types.BondFeeDetails memory bond) private pure {
@@ -175,14 +184,20 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     }
 
     /// @notice Validates the bond fee details before updating them
+    /// @dev As it takes uint8(max 255), so the max possible percentage would be 25%
     /// @param purchaseRate The purchase rate to be validated
-    /// @param earlyRedemptionRate The early redemption rate to be validated
     /// @param referrerRewardRate The referrer reward rate to be validated
     /// @dev This function could be expanded with more complex validation logic as needed
-    function _validateBondFeeDetails(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) private pure {
-        // Range from 0 - 1000: 50 for 5%
-        if (purchaseRate >= PERCENTAGE_DECIMAL) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
-        if (earlyRedemptionRate >= PERCENTAGE_DECIMAL) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
-        if (referrerRewardRate >= PERCENTAGE_DECIMAL || referrerRewardRate > purchaseRate) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+    function _validateBondFeeDetails(uint8 purchaseRate, uint8 referrerRewardRate) private pure {
+        if (referrerRewardRate > purchaseRate) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+    }
+
+    /// @notice Retrieves referral data for a given address
+    /// @dev Returns the referral record associated with a specific address
+    /// @param bondAddress The address of the bond contract
+    /// @param referrerAddress The address of the referrer to query
+    /// @return referrerData The referral data associated with the given referrer address
+    function getReferrerData(address bondAddress, address referrerAddress) external view returns (Types.ReferrerRecord memory referrerData) {
+        return _referrers[bondAddress][referrerAddress];
     }
 }

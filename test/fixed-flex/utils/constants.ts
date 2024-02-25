@@ -7,6 +7,7 @@ const BondFeeConstants = {
 
 const OperationFailed = "OperationFailed"
 const OwnableUnauthorizedAccount ="OwnableUnauthorizedAccount"
+const ERC20InsufficientBalance = "ERC20InsufficientBalance";
 const OperationCodes = {
     CONTRACT_PAUSED: 0,
     FEE_INVALID: 1,
@@ -23,4 +24,5 @@ export {
     OperationFailed,
     OwnableUnauthorizedAccount,
     OperationCodes,
+    ERC20InsufficientBalance
 }

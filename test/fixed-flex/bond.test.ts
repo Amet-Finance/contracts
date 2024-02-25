@@ -1,4 +1,4 @@
-import {deployIssuer, deployVault, revertOperation} from "./utils/deploy";
+import {deployIssuer, deployVault, issueBond, revertOperation} from "./utils/deploy";
 import {ethers} from "hardhat";
 import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
@@ -6,6 +6,7 @@ import {expect} from "chai";
 import {ContractRunner} from "ethers";
 import {Bond__factory, CustomToken__factory, Issuer__factory} from "../../typechain-types";
 import {mineBlocks} from "./utils/block";
+import {generateWallet} from "./utils/address";
 
 describe("Bond", () => {
 
@@ -31,29 +32,7 @@ describe("Bond", () => {
     }
 
     async function deployBond() {
-        const issuer = Issuer__factory.connect(issuerAddress, deployer);
-        const token = getToken()
-        const bondTransaction = await issuer.issue(
-            bondConfig.totalBonds,
-            bondConfig.maturityPeriodInBlocks,
-            token.target,
-            bondConfig.purchaseAmount,
-            token.target,
-            bondConfig.payoutAmount, {value: BondFeeConstants.initialIssuanceFee});
-        const txRecipient = await ethers.provider.getTransactionReceipt(bondTransaction.hash);
-        if (!txRecipient?.logs) throw Error("Failed to deploy")
-
-        for (const log of txRecipient.logs) {
-            const decodedData = issuer.interface.parseLog({
-                topics: [...log.topics],
-                data: log.data
-            });
-            if (decodedData?.name === "BondIssued") {
-                return getBond(decodedData.args.bondAddress)
-            }
-        }
-
-        throw Error("Failed to issue bond")
+        return issueBond(issuerAddress, tokenAddress, bondConfig, deployer)
     }
 
 
@@ -85,7 +64,7 @@ describe("Bond", () => {
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
-        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), generateWallet().address)
         const lifecycle = await bond.lifecycle();
         expect(lifecycle.purchased).to.be.equal(BigInt(5))
 

@@ -1,10 +1,10 @@
 import {deployIssuer, deployVault, issueBond, revertOperation} from "./utils/deploy";
 import {ethers} from "hardhat";
-import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
+import {OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {expect} from "chai";
 import {ContractRunner} from "ethers";
-import {Bond__factory, CustomToken__factory, Issuer__factory} from "../../typechain-types";
+import {Bond__factory, CustomToken__factory} from "../../typechain-types";
 import {mineBlocks} from "./utils/block";
 import {generateWallet} from "./utils/address";
 

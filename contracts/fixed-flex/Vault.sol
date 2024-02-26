@@ -133,7 +133,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param toAddress The address to which the funds will be transferred
     /// @param amount The amount of funds to transfer
     /// @dev Emits a FeesWithdrawn event upon successful withdrawal
-    function withdraw(address token, address toAddress, uint256 amount) external onlyOwner {
+    function withdraw(address token, address toAddress, uint256 amount) external onlyOwner nonReentrant {
         Validator.validateAddress(toAddress);
 
         if (token == address(0)) {

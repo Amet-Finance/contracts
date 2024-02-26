@@ -55,7 +55,6 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         address initialPayoutTokenAddress,
         uint256 initialPayoutAmount
     ) ERC1155("") Ownership(issuer) {
-        Validator.validateAddress(issuer);
         Validator.validateAddress(initialPurchaseTokenAddress);
         Validator.validateAddress(initialPayoutTokenAddress);
 

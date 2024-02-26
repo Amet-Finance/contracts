@@ -149,8 +149,12 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @notice Retrieves the fee details for a specific bond
     /// @param bondAddress The address of the bond
     /// @return The fee details of the specified bond
+    /// @dev This function now includes a check to ensure that the bond's fee details have been initialized
+    /// @dev The check helps prevent returning default (uninitialized) fee details, enhancing the reliability of the function
     function getBondFeeDetails(address bondAddress) external view returns (Types.BondFeeDetails memory) {
         Types.BondFeeDetails memory bond = _bondFeeDetails[bondAddress];
+        // Ensures that the bond's fee details have been initialized before returning them.
+        // This addition addresses the issue where uninitiated bond fee details could be mistakenly returned.
         _isBondInitiated(bond);
         return bond;
     }

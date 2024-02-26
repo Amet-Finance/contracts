@@ -123,6 +123,7 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
 
             if (!isMature && !isCapitulation) Errors.revertOperation(Errors.Code.REDEEM_BEFORE_MATURITY);
 
+            // Dubious typecast invalid as balance max is uint40
             uint40 balanceByIndex = uint40(balanceOf(msg.sender, bondIndex));
             uint40 burnCount = balanceByIndex >= quantity ? quantity : balanceByIndex;
 

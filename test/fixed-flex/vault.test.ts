@@ -1,13 +1,7 @@
 import {deployIssuer, deployVault, issueBond, revertOperation} from "./utils/deploy";
 import {expect} from "chai";
 import {ethers} from "hardhat";
-import {
-    BondFeeConstants,
-    ERC20InsufficientBalance,
-    OperationCodes,
-    OperationFailed,
-    OwnableUnauthorizedAccount
-} from "./utils/constants";
+import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 import {BondConfig} from "./utils/types";
 import {Vault__factory} from "../../typechain-types";
 import {generateWallet} from "./utils/address";
@@ -101,9 +95,9 @@ describe("Vault", () => {
         const [deployer, referrer] = await ethers.getSigners();
         const vault = Vault__factory.connect(vaultAddress, deployer);
 
-        await revertOperation(vault, vault.updateInitialFees(BigInt(10), BigInt(10), BigInt(11)), OperationFailed, OperationCodes.ACTION_BLOCKED)
-        await revertOperation(vault, vault.connect(referrer).updateInitialFees(BigInt(10), BigInt(10), BigInt(5)), OwnableUnauthorizedAccount)
-        await vault.updateInitialFees(BondFeeConstants.purchaseRate, BondFeeConstants.earlyRedemptionRate, BondFeeConstants.referrerRewardRate);
+        await revertOperation(vault, vault.updateBondFeeDetails(ethers.ZeroAddress, BigInt(10), BigInt(10), BigInt(11)), OperationFailed, OperationCodes.ACTION_BLOCKED)
+        await revertOperation(vault, vault.connect(referrer).updateBondFeeDetails(ethers.ZeroAddress, BigInt(10), BigInt(10), BigInt(5)), OwnableUnauthorizedAccount)
+        await vault.updateBondFeeDetails(ethers.ZeroAddress, BondFeeConstants.purchaseRate, BondFeeConstants.earlyRedemptionRate, BondFeeConstants.referrerRewardRate);
     })
 
     it("Update Issuance Fee", async () => {
@@ -120,7 +114,7 @@ describe("Vault", () => {
         const vault = Vault__factory.connect(vaultAddress, deployer);
 
         await revertOperation(vault, vault.connect(referrer).updateBondFeeDetails(ethers.ZeroAddress, BigInt(10), BigInt(10), BigInt(9)), OwnableUnauthorizedAccount);
-        await revertOperation(vault, vault.updateBondFeeDetails(ethers.ZeroAddress, BigInt(10), BigInt(10), BigInt(9)), OperationFailed, OperationCodes.CONTRACT_NOT_INITIATED);
+        await revertOperation(vault, vault.updateBondFeeDetails(generateWallet().address, BigInt(10), BigInt(10), BigInt(9)), OperationFailed, OperationCodes.CONTRACT_NOT_INITIATED);
 
         const token = await ethers.deployContract("CustomToken", []);
         const bond = await issueBond(issuerAddress, token.target.toString(), bondConfig, deployer);

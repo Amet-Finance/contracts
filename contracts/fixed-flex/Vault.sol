@@ -20,20 +20,19 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     // Events declaration
     event RestrictionStatusUpdated(address referrer, bool isBlocked);
     event IssuanceFeeChanged(uint256 fee);
-    event InitialFeeDetailsUpdated(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate);
     event FeesWithdrawn(address token, address to, uint256 amount);
-    event ReferralRecord(address referrer, address bondAddress, uint40 quantity);
-    event ReferrerRewardClaimed(address referrer, address bondAddress, uint256 amount);
-    event BondFeeDetailsUpdated(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate);
+    event ReferralRecord(address bondAddress, address referrer, uint40 quantity);
+    event ReferrerRewardClaimed(address bondAddress, address referrer, uint256 amount);
+    event BondFeeDetailsUpdated(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate); // bondAddress - 0x0 for initialBondFeeDetails
 
     uint16 private constant _PERCENTAGE_DECIMAL = 1000;
     uint256 public issuanceFee;
     address public immutable issuerAddress;
     Types.BondFeeDetails public initialBondFeeDetails;
 
-    mapping(address => bool) private _restrictedAddresses;
-    mapping(address => Types.BondFeeDetails) private _bondFeeDetails;
-    mapping(address => mapping(address => Types.ReferrerRecord)) private _referrers;
+    mapping(address referrer => bool status) private _restrictedAddresses;
+    mapping(address bondAddress => Types.BondFeeDetails) private _bondFeeDetails;
+    mapping(address bondAddress => mapping(address referrer => Types.ReferrerRecord)) private _referrers;
 
     /// @notice Constructs the Vault contract
     /// @param initialIssuerAddress The address of the bond issuer
@@ -69,13 +68,13 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         _isBondInitiated(_bondFeeDetails[msg.sender]);
         if (referrer != address(0) && referrer != operator) {
             _referrers[msg.sender][referrer].quantity += quantity;
-            emit ReferralRecord(referrer, msg.sender, quantity);
+            emit ReferralRecord(msg.sender, referrer, quantity);
         }
     }
 
     /// @notice Claims referral rewards for a specified bond
     /// @param bondAddress The address of the bond for which to claim rewards
-    function claimReferralRewards(address bondAddress) external nonReentrant {
+    function claimReferralRewards(address bondAddress) external {
         _isAddressUnrestricted(msg.sender);
         Types.ReferrerRecord storage referrer = _referrers[bondAddress][msg.sender];
         Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
@@ -89,42 +88,33 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         referrer.isRepaid = true;
         uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, _PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);
-        emit ReferrerRewardClaimed(msg.sender, bondAddress, rewardAmount);
+        emit ReferrerRewardClaimed(bondAddress, msg.sender, rewardAmount);
     }
 
     /// @notice Updates the issuance fee for bonds
-    /// @param newIssuanceFee The new fee amount for issuing bonds
+    /// @param fee The new fee amount for issuing bonds
     /// @dev Emits a IssuanceFeeChanged event
-    function updateIssuanceFee(uint256 newIssuanceFee) external onlyOwner {
-        issuanceFee = newIssuanceFee;
-        emit IssuanceFeeChanged(newIssuanceFee);
+    function updateIssuanceFee(uint256 fee) external onlyOwner {
+        issuanceFee = fee;
+        emit IssuanceFeeChanged(fee);
     }
 
-    /// @notice Updates the initial fee settings for new bonds
-    /// @param purchaseRate The rate for bond purchases
-    /// @param earlyRedemptionRate The rate for early bond redemptions
-    /// @param referrerRewardRate The reward rate for referrers
-    /// @dev Emits a InitialFeeDetailsUpdated event upon successful update
-    function updateInitialFees(uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
-        _validateBondFeeDetails(purchaseRate, referrerRewardRate);
-        initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
-        emit InitialFeeDetailsUpdated(purchaseRate, earlyRedemptionRate, referrerRewardRate);
-    }
-
-    /// @notice Updates the fee details for a specific bond
+    /// @notice Updates the fee details for a specific bond or for initial fee
     /// @dev Can only be called by the contract owner
-    /// @param bondAddress The address of the bond to update fee details for
+    /// @param bondAddress The address of the bond to update fee details for or address(0) for initial fee
     /// @param purchaseRate The new purchase rate to be set
     /// @param earlyRedemptionRate The new early redemption rate to be set
     /// @param referrerRewardRate The new referrer reward rate to be set
     function updateBondFeeDetails(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) external onlyOwner {
-        Types.BondFeeDetails storage bondFeeDetails = _bondFeeDetails[bondAddress];
-        _isBondInitiated(bondFeeDetails);
-        _validateBondFeeDetails(purchaseRate, referrerRewardRate);
 
-        bondFeeDetails.purchaseRate = purchaseRate;
-        bondFeeDetails.earlyRedemptionRate = earlyRedemptionRate;
-        bondFeeDetails.referrerRewardRate = referrerRewardRate;
+        _validateBondFeeDetails(purchaseRate, referrerRewardRate);
+        if (bondAddress == address(0)) {
+            initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
+        } else {
+            Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
+            _isBondInitiated(bondFeeDetails);
+            _bondFeeDetails[bondAddress] = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
+        }
 
         emit BondFeeDetailsUpdated(bondAddress, purchaseRate, earlyRedemptionRate, referrerRewardRate);
     }
@@ -160,7 +150,9 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param bondAddress The address of the bond
     /// @return The fee details of the specified bond
     function getBondFeeDetails(address bondAddress) external view returns (Types.BondFeeDetails memory) {
-        return _bondFeeDetails[bondAddress];
+        Types.BondFeeDetails memory bond = _bondFeeDetails[bondAddress];
+        _isBondInitiated(bond);
+        return bond;
     }
 
     /// @notice Checks if the referrer is restricted

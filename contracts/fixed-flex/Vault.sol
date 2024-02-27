@@ -111,8 +111,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         if (bondAddress == address(0)) {
             initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
         } else {
-            Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
-            _isBondInitiated(bondFeeDetails);
             _bondFeeDetails[bondAddress] = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
         }
 

@@ -170,7 +170,7 @@ describe("Vault", () => {
         await vault.withdraw(ethers.ZeroAddress, referrer.address, balanceETH / BigInt(2))
     })
 
-    it("Issued bond behaviour after changing vault", async () => {
+    it("Issued bond behaviour after changing vault for purchase", async () => {
         const [deployer, random] = await ethers.getSigners();
         const issuer = await deployIssuer();
         const token = await ethers.deployContract("CustomToken", [])
@@ -189,6 +189,28 @@ describe("Vault", () => {
 
         await vaultChanged.updateBondFeeDetails(bond.target, BondFeeConstants.purchaseRate, BondFeeConstants.earlyRedemptionRate, BondFeeConstants.referrerRewardRate);
         await bond.purchase(BigInt(1), ethers.ZeroAddress);
+    })
+
+    it("Issued bond behaviour after changing vault for claiming referral rewards", async () => {
+        const [deployer, random] = await ethers.getSigners();
+        const issuer = await deployIssuer();
+        const token = await ethers.deployContract("CustomToken", [])
+        const vaultOriginal = await deployVault(issuer.target);
+        await issuer.changeVault(vaultOriginal.target);
+
+        const bond = await issueBond(issuer.target.toString(), token.target.toString(), bondConfig, deployer);
+
+        await token.approve(bond.target, bondConfig.purchaseAmount * bondConfig.totalBonds);
+        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
+        await bond.settle()
+        await bond.purchase(bondConfig.totalBonds, random.address);
+
+        const vaultChanged = await deployVault(issuer.target);
+        await issuer.changeVault(vaultChanged.target);
+
+
+        await vaultChanged.updateBondFeeDetails(bond.target, BondFeeConstants.purchaseRate, BondFeeConstants.earlyRedemptionRate, BondFeeConstants.referrerRewardRate);
+        await vaultOriginal.connect(random).claimReferralRewards(bond.target);
     })
 
 

@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 library Types {
-    string constant BASE_URI = "https://storage.amet.finance/contracts/";
+    string private constant BASE_URI = "https://storage.amet.finance/contracts/";
 
     struct BondLifecycle {
         uint40 totalBonds; // Total number of bonds issued

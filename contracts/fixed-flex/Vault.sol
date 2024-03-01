@@ -14,6 +14,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title Vault Contract
 /// @notice Manages financial aspects of bonds including fees and referral rewards
+/// @custom:security-contact hello@amet.finance, Twitter: @amet_finance
 contract Vault is Ownership, ReentrancyGuard, IVault {
     using SafeERC20 for IERC20;
 

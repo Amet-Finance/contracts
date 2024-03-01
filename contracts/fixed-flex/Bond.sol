@@ -1,4 +1,3 @@
-// todo also add library written in assembly for percentage functions
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
@@ -19,6 +18,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @title Bond Contract
 /// @notice ERC1155 token representing bonds with lifecycle management
 /// @dev Inherits from ERC1155 for token functionality and Ownable for ownership management
+/// @custom:security-contact hello@amet.finance, Twitter: @amet_finance
 contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     using SafeERC20 for IERC20;
 

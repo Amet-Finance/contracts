@@ -11,6 +11,7 @@ import {Ownership} from "./libraries/helpers/Ownership.sol";
 /// @title Issuer Contract
 /// @notice Contract for issuing new Bond contracts, allowing management of bonds' lifecycle
 /// @dev Inherits from Ownable for access control, implements IIssuer interface
+/// @custom:security-contact hello@amet.finance, Twitter: @amet_finance
 contract Issuer is Ownership, IIssuer {
     // Events declaration
     event BondIssued(address bondAddress);

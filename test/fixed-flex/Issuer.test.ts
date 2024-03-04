@@ -27,12 +27,10 @@ describe("Issuer", () => {
     it("Change Vault", async () => {
         const [_, randomAddress] = await ethers.getSigners();
         const contract = await deployIssuer()
-        await revertOperation(contract, contract.changeVault(ethers.ZeroAddress), OperationFailed, OperationCodes.ADDRESS_INVALID)
 
         const vaultAddress = generateWallet().address;
         await contract.changeVault(vaultAddress);
         const vault = await contract.vault()
-
 
         await revertOperation(contract, contract.connect(randomAddress).changeVault(vaultAddress), OwnableUnauthorizedAccount)
         expect(vault).to.equal(vaultAddress);
@@ -53,7 +51,6 @@ describe("Issuer", () => {
         const vault = await deployVault(contract.target)
         await contract.changeVault(vault.target);
 
-        await expect(contract.issue(totalBonds, maturityInBlocks, ethers.ZeroAddress, purchaseAmount, payoutToken, payoutAmount, {value: BondFeeConstants.initialIssuanceFee})).to.be.reverted;
         await contract.changePausedState(true);
         await expect(contract.issue(totalBonds, maturityInBlocks, purchaseToken, purchaseAmount, payoutToken, payoutAmount, {value: BondFeeConstants.initialIssuanceFee})).to.be.reverted;
         await contract.changePausedState(false);

@@ -5,7 +5,6 @@ import {IVault} from "./interfaces/IVault.sol";
 import {IBond} from "./interfaces/IBond.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
 import {Types} from "./libraries/Types.sol";
-import {Validator} from "./libraries/helpers/Validator.sol";
 import {Ownership} from "./libraries/helpers/Ownership.sol";
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -42,7 +41,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param earlyRedemptionRate The rate for early bond redemptions
     /// @param referrerRewardRate The reward rate for referrers
     constructor(address initialIssuerAddress, uint256 initialIssuanceFee, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate) Ownership(msg.sender) {
-        Validator.validateAddress(initialIssuerAddress);
         _validateBondFeeDetails(purchaseRate, referrerRewardRate);
 
         issuerAddress = initialIssuerAddress;
@@ -133,8 +131,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param amount The amount of funds to transfer
     /// @dev Emits a FeesWithdrawn event upon successful withdrawal
     function withdraw(address token, address toAddress, uint256 amount) external onlyOwner nonReentrant {
-        Validator.validateAddress(toAddress);
-
         if (token == address(0)) {
             (bool success, ) = toAddress.call{value: amount}("");
             if (!success) Errors.revertOperation(Errors.Code.ACTION_INVALID);

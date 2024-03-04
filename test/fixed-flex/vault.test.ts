@@ -154,10 +154,6 @@ describe("Vault", () => {
         // WITHDRAW ETHER OWNER INVALID
         await revertOperation(vault, vault.connect(referrer).withdraw(ethers.ZeroAddress, deployer.address, balanceETH), OwnableUnauthorizedAccount)
 
-        // WITHDRAW ETHER INVALID ADDRESS
-        await revertOperation(vault, vault.withdraw(ethers.ZeroAddress, ethers.ZeroAddress, balanceETH), OperationFailed, OperationCodes.ADDRESS_INVALID)
-
-
         // WITHDRAW ETHER REVERT ADDRESS
         await revertOperation(vault, vault.withdraw(ethers.ZeroAddress, issuerAddress, balanceETH), OperationFailed, OperationCodes.ACTION_INVALID)
 

@@ -6,7 +6,6 @@ import {IBond} from "./interfaces/IBond.sol";
 import {IIssuer} from "./interfaces/IIssuer.sol";
 import {IVault} from "./interfaces/IVault.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
-import {Validator} from "./libraries/helpers/Validator.sol";
 import {Ownership} from "./libraries/helpers/Ownership.sol";
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
@@ -55,9 +54,6 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         address initialPayoutTokenAddress,
         uint256 initialPayoutAmount
     ) ERC1155("") Ownership(issuer) {
-        Validator.validateAddress(initialPurchaseTokenAddress);
-        Validator.validateAddress(initialPayoutTokenAddress);
-
         _issuerContract = IIssuer(msg.sender);
         lifecycle = Types.BondLifecycle(initialTotalBonds, 0, 0, 0, initialMaturityInBlocks, false);
         purchaseToken = IERC20(initialPurchaseTokenAddress);

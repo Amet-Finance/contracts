@@ -24,6 +24,13 @@ contract Issuer is Ownership {
     constructor() Ownership(msg.sender) {}
 
     /// @notice Issues a new Bond contract
+    /// @dev It is important to note that the Amet Finance protocol
+    /// is not designed to support Fee On Transfer (FOT) tokens, rebasing tokens, or any tokens
+    /// with mechanisms that alter balance logic. Using such tokens can result in unpredictable
+    /// behavior and may cause the protocol to not function as intended. Users are strongly
+    /// advised to utilize standard, non-rebasing tokens without fee-on-transfer features
+    /// to ensure the integrity and expected operation of the bond issuance and lifecycle management.
+    ///
     /// @dev Emits a BondIssued event upon successful issuance
     /// @param totalBonds The total number of bonds to issue
     /// @param maturityInBlocks The maturity period of the bond in blocks

@@ -16,6 +16,13 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title Bond Contract
 /// @notice ERC1155 token representing bonds with lifecycle management
+/// @dev It is important to note that the Amet Finance protocol
+/// is not designed to support Fee On Transfer (FOT) tokens, rebasing tokens, or any tokens
+/// with mechanisms that alter balance logic. Using such tokens can result in unpredictable
+/// behavior and may cause the protocol to not function as intended. Users are strongly
+/// advised to utilize standard, non-rebasing tokens without fee-on-transfer features
+/// to ensure the integrity and expected operation of the bond issuance and lifecycle management.
+///
 /// @dev Inherits from ERC1155 for token functionality and Ownable for ownership management
 /// @custom:security-contact hello@amet.finance, Twitter: @amet_finance
 contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {

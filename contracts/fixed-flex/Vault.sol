@@ -80,13 +80,17 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         IBond bond = IBond(bondAddress);
 
         _isBondInitiated(bondFeeDetails);
+        
+        uint40 quantityToClaim = referrer.quantity - referrer.claimed;
 
-        if (referrer.isRepaid || referrer.quantity == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+        if (quantityToClaim == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
 
-        (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getSettledPurchaseDetails();
-        referrer.isRepaid = true;
+        (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getPurchaseDetails();
+        referrer.claimed += quantityToClaim;
+
         uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, _PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);
+
         emit ReferrerRewardClaimed(bondAddress, msg.sender, rewardAmount);
     }
 

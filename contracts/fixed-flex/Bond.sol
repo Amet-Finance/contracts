@@ -228,14 +228,10 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         emit DecreaseMaturityPeriod(maturityPeriodInBlocks);
     }
 
-    /// @notice Retrieves the purchase token and amount for the bond if it is fully settled
-    /// @return purchaseToken The ERC20 token used for bond purchases if the bond is fully settled
-    /// @return purchaseAmount The amount of the purchase token required to buy the bond if the bond is fully settled
-    function getSettledPurchaseDetails() external view returns (IERC20, uint256) {
-        Types.BondLifecycle memory lifecycleTmp = lifecycle;
-        bool isSettledFully = lifecycleTmp.isSettled && lifecycleTmp.totalBonds == lifecycleTmp.purchased;
-        if (!isSettledFully) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
-
+    /// @notice Retrieves the purchase token and amount for the bond
+    /// @return purchaseToken The ERC20 token used for bond purchases
+    /// @return purchaseAmount The amount of the purchase token required to buy the bond
+    function getPurchaseDetails() external view returns (IERC20, uint256) {
         return (purchaseToken, purchaseAmount);
     }
 

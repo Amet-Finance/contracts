@@ -174,17 +174,9 @@ describe("Bond", () => {
         await bond.decreaseMaturityPeriod(bondConfig.maturityPeriodInBlocks - BigInt(1));
     })
 
-    it("Get Settled Purchase Details", async () => {
-        const bond = await deployBond()
-        const token = getToken();
-
-        await revertOperation(bond, bond.getSettledPurchaseDetails(), OperationFailed, OperationCodes.ACTION_BLOCKED)
-        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
-        await bond.settle();
-        await token.approve(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
-        await bond.purchase(bondConfig.totalBonds, ethers.ZeroAddress)
-
-        await bond.getSettledPurchaseDetails();
+    it("Get Purchase Details", async () => {
+        const bond = await deployBond()    
+        await bond.getPurchaseDetails();
     })
 
 

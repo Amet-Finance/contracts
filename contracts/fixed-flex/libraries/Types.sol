@@ -22,6 +22,6 @@ library Types {
 
     struct ReferrerRecord {
         uint40 quantity;
-        bool isRepaid;
+        uint40 claimed;
     }
 }

@@ -71,12 +71,12 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param bondAddress The address of the bond for which to claim rewards
     function claimReferralRewards(address bondAddress) external {
         _isAddressUnrestricted(msg.sender);
-        Types.ReferrerRecord storage referrer = _referrers[bondAddress][msg.sender];
-        Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
-        IBond bond = IBond(bondAddress);
 
+        Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
         _isBondInitiated(bondFeeDetails);
 
+        Types.ReferrerRecord storage referrer = _referrers[bondAddress][msg.sender];
+        IBond bond = IBond(bondAddress);
         uint40 quantityToClaim = referrer.quantity - referrer.claimed;
 
         if (quantityToClaim == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);

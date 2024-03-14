@@ -35,7 +35,6 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     event WithdrawExcessPayout(uint256 excessPayout);
 
     // State variable declarations
-    uint16 private constant _PERCENTAGE_DECIMAL = 1000;
     IIssuer private immutable _issuerContract;
     Types.BondLifecycle public lifecycle;
     IERC20 public immutable purchaseToken;
@@ -84,7 +83,7 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         uint8 purchaseRate = vault.getBondFeeDetails(address(this)).purchaseRate;
 
         uint256 totalAmount = quantity * purchaseAmount;
-        uint256 purchaseFee = Math.mulDiv(totalAmount, purchaseRate, _PERCENTAGE_DECIMAL);
+        uint256 purchaseFee = Math.mulDiv(totalAmount, purchaseRate, Types._PERCENTAGE_DECIMAL);
 
         purchaseToken.safeTransferFrom(msg.sender, address(vault), purchaseFee);
         purchaseToken.safeTransferFrom(msg.sender, owner(), totalAmount - purchaseFee);
@@ -158,7 +157,7 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     function _calculateCapitulationPayout(uint256 payoutAmountTmp, uint40 maturityPeriodInBlocks, uint40 burnCount, uint256 purchasedBlock, uint8 earlyRedemptionRate) internal view returns (uint256 payoutReduction) {
         uint256 totalPayoutToBePaid = burnCount * payoutAmountTmp;
         uint256 bondsAmountForCapitulation = Math.mulDiv(totalPayoutToBePaid, block.number - purchasedBlock, maturityPeriodInBlocks);
-        uint256 feeDeducted = bondsAmountForCapitulation - Math.mulDiv(bondsAmountForCapitulation, earlyRedemptionRate, _PERCENTAGE_DECIMAL);
+        uint256 feeDeducted = bondsAmountForCapitulation - Math.mulDiv(bondsAmountForCapitulation, earlyRedemptionRate, Types._PERCENTAGE_DECIMAL);
         return (totalPayoutToBePaid - feeDeducted);
     }
 
@@ -240,6 +239,6 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @param /* id */ The token ID (unused in this override)
     /// @return The constructed token URI
     function uri(uint256 /* id */) public view override returns (string memory) {
-        return string(abi.encodePacked(Types.BASE_URI, Strings.toHexString(uint160(address(this)), 20), "_80001.json"));
+        return string(abi.encodePacked(Types._BASE_URI, Strings.toHexString(uint160(address(this)), 20), "_80001.json"));
     }
 }

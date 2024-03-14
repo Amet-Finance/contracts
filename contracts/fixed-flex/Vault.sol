@@ -47,9 +47,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
     }
 
-    /// @notice Receive function to handle direct ether transfers to the contract
-    receive() external payable {}
-
     /// @notice Initializes a bond with the default fee settings
     /// @param bondAddress The address of the bond to initialize
     function initializeBond(address bondAddress) external payable {
@@ -79,7 +76,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         IBond bond = IBond(bondAddress);
 
         _isBondInitiated(bondFeeDetails);
-        
+
         uint40 quantityToClaim = referrer.quantity - referrer.claimed;
 
         if (quantityToClaim == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);

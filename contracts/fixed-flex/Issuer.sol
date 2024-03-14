@@ -13,7 +13,7 @@ import {Ownership} from "./libraries/helpers/Ownership.sol";
 contract Issuer is Ownership {
     // Events declaration
     event BondIssued(address bondAddress);
-    event VaultChanged(address vaultAddress);
+    event VaultChanged(address previousVaultAddress, address newVaultAddress);
     event PauseChanged(bool isPaused);
 
     // State variables
@@ -52,8 +52,8 @@ contract Issuer is Ownership {
     /// @dev Only callable by the owner, emits VaultChanged event
     /// @param vaultAddress The new vault address
     function changeVault(address vaultAddress) external onlyOwner {
+        emit VaultChanged(address(vault), vaultAddress);
         vault = IVault(vaultAddress);
-        emit VaultChanged(vaultAddress);
     }
 
     /// @notice Toggles the paused state of bond issuance

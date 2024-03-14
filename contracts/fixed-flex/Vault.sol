@@ -88,7 +88,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getPurchaseDetails();
         referrer.claimed += quantityToClaim;
 
-        uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, _PERCENTAGE_DECIMAL);
+        uint256 rewardAmount = Math.mulDiv((quantityToClaim * purchaseAmount), bondFeeDetails.referrerRewardRate, _PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);
 
         emit ReferrerRewardClaimed(bondAddress, msg.sender, rewardAmount);

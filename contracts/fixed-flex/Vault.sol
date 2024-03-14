@@ -25,7 +25,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     event ReferrerRewardClaimed(address bondAddress, address referrer, uint256 amount);
     event BondFeeDetailsUpdated(address bondAddress, uint8 purchaseRate, uint8 earlyRedemptionRate, uint8 referrerRewardRate); // bondAddress - 0x0 for initialBondFeeDetails
 
-    uint16 private constant _PERCENTAGE_DECIMAL = 1000;
     uint256 public issuanceFee;
     address public immutable issuerAddress;
     Types.BondFeeDetails public initialBondFeeDetails;
@@ -47,9 +46,6 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         issuanceFee = initialIssuanceFee;
         initialBondFeeDetails = Types.BondFeeDetails(purchaseRate, earlyRedemptionRate, referrerRewardRate, true);
     }
-
-    /// @notice Receive function to handle direct ether transfers to the contract
-    receive() external payable {}
 
     /// @notice Initializes a bond with the default fee settings
     /// @param bondAddress The address of the bond to initialize
@@ -75,18 +71,22 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     /// @param bondAddress The address of the bond for which to claim rewards
     function claimReferralRewards(address bondAddress) external {
         _isAddressUnrestricted(msg.sender);
-        Types.ReferrerRecord storage referrer = _referrers[bondAddress][msg.sender];
-        Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
-        IBond bond = IBond(bondAddress);
 
+        Types.BondFeeDetails memory bondFeeDetails = _bondFeeDetails[bondAddress];
         _isBondInitiated(bondFeeDetails);
 
-        if (referrer.isRepaid || referrer.quantity == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+        Types.ReferrerRecord storage referrer = _referrers[bondAddress][msg.sender];
+        IBond bond = IBond(bondAddress);
+        uint40 quantityToClaim = referrer.quantity - referrer.claimed;
 
-        (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getSettledPurchaseDetails();
-        referrer.isRepaid = true;
-        uint256 rewardAmount = Math.mulDiv((referrer.quantity * purchaseAmount), bondFeeDetails.referrerRewardRate, _PERCENTAGE_DECIMAL);
+        if (quantityToClaim == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
+
+        (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getPurchaseDetails();
+        referrer.claimed += quantityToClaim;
+
+        uint256 rewardAmount = Math.mulDiv((quantityToClaim * purchaseAmount), bondFeeDetails.referrerRewardRate, Types._PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);
+
         emit ReferrerRewardClaimed(bondAddress, msg.sender, rewardAmount);
     }
 

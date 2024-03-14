@@ -174,17 +174,30 @@ describe("Bond", () => {
         await bond.decreaseMaturityPeriod(bondConfig.maturityPeriodInBlocks - BigInt(1));
     })
 
-    it("Get Settled Purchase Details", async () => {
+    it("Ownership update, transfer, re-announce", async () => {
+        const [issuer, random] = await ethers.getSigners();
         const bond = await deployBond()
-        const token = getToken();
 
-        await revertOperation(bond, bond.getSettledPurchaseDetails(), OperationFailed, OperationCodes.ACTION_BLOCKED)
-        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
-        await bond.settle();
-        await token.approve(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
-        await bond.purchase(bondConfig.totalBonds, ethers.ZeroAddress)
+        await revertOperation(bond, bond.renounceOwnership(), OperationFailed, OperationCodes.ACTION_BLOCKED)
 
-        await bond.getSettledPurchaseDetails();
+        await bond.transferOwnership(random.address);
+        const pendingOwner = await bond.pendingOwner();
+        expect(pendingOwner).to.be.equal(random.address);
+
+        await bond.connect(random).acceptOwnership()
+        const owner = await bond.owner()
+        expect(owner).to.be.equal(random.address);
+
+
+        // // maturityPeriodInBlocks >= lifecycleTmp.maturityPeriodInBlocks ACTION_BLOCKED
+        // await revertOperation(bond, bond.decreaseMaturityPeriod(BigInt(4000)), OperationFailed, OperationCodes.ACTION_BLOCKED)
+        //
+        // await bond.decreaseMaturityPeriod(bondConfig.maturityPeriodInBlocks - BigInt(1));
+    })
+
+    it("Get Purchase Details", async () => {
+        const bond = await deployBond()
+        await bond.getPurchaseDetails();
     })
 
 

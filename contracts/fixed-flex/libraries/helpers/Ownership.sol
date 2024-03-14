@@ -2,12 +2,12 @@
 pragma solidity 0.8.24;
 
 import {Errors} from "./Errors.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /// @title Ownership Contract
 /// @notice Provides ownership management with a disabled renounce ownership feature
 /// @dev Extends OpenZeppelin's Ownable contract with modified renounceOwnership functionality
-contract Ownership is Ownable {
+contract Ownership is Ownable2Step {
     /// @notice Initializes the contract setting the provided address as the initial owner
     /// @param owner The address to be set as the initial owner of the contract
     constructor(address owner) Ownable(owner) {}

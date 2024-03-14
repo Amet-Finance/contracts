@@ -1,10 +1,10 @@
-import {deployIssuer, deployVault, issueBond, revertOperation} from "./utils/deploy";
-import {expect} from "chai";
-import {ethers} from "hardhat";
-import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
-import {BondConfig} from "./utils/types";
-import {Vault__factory} from "../../typechain-types";
-import {generateWallet} from "./utils/address";
+import { deployIssuer, deployVault, issueBond, revertOperation } from "./utils/deploy";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+import { BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount } from "./utils/constants";
+import { BondConfig } from "./utils/types";
+import { Vault__factory } from "../../typechain-types";
+import { generateWallet } from "./utils/address";
 
 describe("Vault", () => {
 
@@ -71,23 +71,21 @@ describe("Vault", () => {
 
         await token.approve(bond.target, bondConfig.totalBonds * bondConfig.purchaseAmount);
 
-        // QUANTITY_0
+        // QUANTITY 0
         await revertOperation(bond, vault.claimReferralRewards(bond.target), OperationFailed, OperationCodes.ACTION_BLOCKED)
+        // PURCHASE HALF AND CLAIM
+        await bond.purchase(bondConfig.totalBonds / BigInt(2), referrer.address);
+        await vault.claimReferralRewards(bond.target)
 
-        await bond.purchase(bondConfig.totalBonds, referrer.address);
-        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
-
-        // NOT SETTLED YET
-        await revertOperation(vault, vault.claimReferralRewards(bond.target), OperationFailed, OperationCodes.ACTION_BLOCKED)
-        await bond.settle();
-
-
+        // PURCHASE REMAINING AND CLAIM
+        await bond.purchase(bondConfig.totalBonds / BigInt(2), referrer.address);
         await vault.claimReferralRewards(bond.target);
+
         const balance = await token.balanceOf(referrer.address);
         expect(balance).to.be.greaterThan(BigInt(0))
 
 
-        // isRepaid
+        // CLAIM FAIL FULL REPAID
         await revertOperation(vault, vault.claimReferralRewards(bond.target), OperationFailed, OperationCodes.ACTION_BLOCKED)
     })
 

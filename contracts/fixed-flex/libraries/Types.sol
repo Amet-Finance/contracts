@@ -2,7 +2,8 @@
 pragma solidity 0.8.24;
 
 library Types {
-    string internal constant BASE_URI = "https://storage.amet.finance/contracts/";
+    uint16 internal constant _PERCENTAGE_DECIMAL = 1000;
+    string internal constant _BASE_URI = "https://storage.amet.finance/contracts/";
 
     struct BondLifecycle {
         uint40 totalBonds; // Total number of bonds issued
@@ -22,6 +23,6 @@ library Types {
 
     struct ReferrerRecord {
         uint40 quantity;
-        bool isRepaid;
+        uint40 claimed;
     }
 }

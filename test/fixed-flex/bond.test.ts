@@ -60,6 +60,7 @@ describe("Bond", () => {
 
         await token.approve(bond.target.toString(), BigInt(30) * bondConfig.purchaseAmount);
 
+        await bond.purchase(BigInt(0), ethers.ZeroAddress) // allow purchase with 0
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
@@ -68,7 +69,7 @@ describe("Bond", () => {
         const lifecycle = await bond.lifecycle();
         expect(lifecycle.purchased).to.be.equal(BigInt(5))
 
-        await revertOperation(bond, bond.purchase(BigInt(150), ethers.ZeroAddress), OperationFailed, OperationCodes.ACTION_INVALID);
+        await revertOperation(bond, bond.purchase(BigInt(bondConfig.totalBonds), ethers.ZeroAddress), OperationFailed, OperationCodes.ACTION_INVALID);
     })
 
     it("Redeem", async () => {

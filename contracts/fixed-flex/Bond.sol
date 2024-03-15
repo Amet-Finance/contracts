@@ -88,7 +88,7 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         purchaseToken.safeTransferFrom(msg.sender, address(vault), purchaseFee);
         purchaseToken.safeTransferFrom(msg.sender, owner(), totalAmount - purchaseFee);
 
-        lifecycleTmp.purchased += quantity;
+        unchecked {lifecycleTmp.purchased += quantity;}
         purchaseBlocks[lifecycleTmp.uniqueBondIndex] = block.number;
 
         _mint(msg.sender, lifecycleTmp.uniqueBondIndex++, quantity, "");

@@ -109,7 +109,7 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         uint256 payoutAmountTmp = payoutAmount;
         uint256 totalPayout = quantity * payoutAmountTmp;
 
-        lifecycleTmp.redeemed += quantity;
+        unchecked{lifecycleTmp.redeemed += quantity;}
 
         if (totalPayout > payoutTokenTmp.balanceOf(address(this)) && !isCapitulation) {
             Errors.revertOperation(Errors.Code.INSUFFICIENT_PAYOUT);

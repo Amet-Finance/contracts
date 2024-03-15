@@ -62,7 +62,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
     function recordReferralPurchase(address operator, address referrer, uint40 quantity) external {
         _isBondInitiated(_bondFeeDetails[msg.sender]);
         if (referrer != address(0) && referrer != operator) {
-            _referrers[msg.sender][referrer].quantity += quantity;
+            unchecked{_referrers[msg.sender][referrer].quantity += quantity;}
             emit ReferralRecord(msg.sender, referrer, quantity);
         }
     }
@@ -82,7 +82,7 @@ contract Vault is Ownership, ReentrancyGuard, IVault {
         if (quantityToClaim == 0) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
 
         (IERC20 purchaseToken, uint256 purchaseAmount) = bond.getPurchaseDetails();
-        referrer.claimed += quantityToClaim;
+        unchecked{referrer.claimed += quantityToClaim;}
 
         uint256 rewardAmount = Math.mulDiv((quantityToClaim * purchaseAmount), bondFeeDetails.referrerRewardRate, Types._PERCENTAGE_DECIMAL);
         purchaseToken.safeTransfer(msg.sender, rewardAmount);

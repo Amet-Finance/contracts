@@ -1,10 +1,10 @@
-import {deployIssuer, deployVault, issueBond, revertOperation} from "./utils/deploy";
+import {deployIssuer, deployToken, deployVault, issueBond, revertOperation} from "./utils/deploy";
 import {ethers} from "hardhat";
 import {OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {expect} from "chai";
 import {ContractRunner} from "ethers";
-import {Bond__factory, CustomToken__factory} from "../../typechain-types";
+import {CustomToken__factory, Issuer__factory, Vault__factory} from "../../typechain-types";
 import {mineBlocks} from "./utils/block";
 import {generateWallet} from "./utils/address";
 
@@ -19,11 +19,6 @@ describe("Bond", () => {
         maturityPeriodInBlocks: BigInt(10),
         purchaseAmount: BigInt(10 * 1e18),
         payoutAmount: BigInt(15 * 1e18)
-    }
-
-    function getBond(bondAddress: string, runner?: ContractRunner | null | undefined) {
-        if (!bondAddress) throw Error("NOT INITIATED");
-        return Bond__factory.connect(bondAddress, runner || deployer)
     }
 
     function getToken(runner?: ContractRunner | null | undefined) {
@@ -43,7 +38,7 @@ describe("Bond", () => {
         const vault = await deployVault(issuer.target);
         await issuer.changeVault(vault.target);
 
-        const token = await ethers.deployContract("CustomToken", [])
+        const token = await deployToken()
         tokenAddress = token.target.toString();
 
         const signers = await ethers.getSigners();
@@ -52,24 +47,39 @@ describe("Bond", () => {
     })
 
     it("Purchase", async () => {
+        const [signer] = await ethers.getSigners();
+        const issuerContract = Issuer__factory.connect(issuerAddress, signer);
+        const valutAddress = await issuerContract.vault();
+        const valutContract = Vault__factory.connect(valutAddress, signer);
+
         const bond = await deployBond();
         const token = getToken();
 
         // ERC20InsufficientAllowance
         await revertOperation(bond, bond.purchase(BigInt(1), ethers.ZeroAddress))
 
-        await token.approve(bond.target.toString(), BigInt(30) * bondConfig.purchaseAmount);
+        await token.approve(bond.target.toString(), bondConfig.totalBonds * bondConfig.purchaseAmount);
+        await revertOperation(bond, bond.purchase(bondConfig.totalBonds + BigInt(1), ethers.ZeroAddress), OperationFailed, OperationCodes.ACTION_INVALID)
 
         await bond.purchase(BigInt(0), ethers.ZeroAddress) // allow purchase with 0
-        await bond.purchase(BigInt(1), ethers.ZeroAddress)
-        await bond.purchase(BigInt(1), ethers.ZeroAddress)
-        await bond.purchase(BigInt(1), ethers.ZeroAddress)
-        await bond.purchase(BigInt(1), ethers.ZeroAddress)
-        await bond.purchase(BigInt(1), generateWallet().address)
-        const lifecycle = await bond.lifecycle();
-        expect(lifecycle.purchased).to.be.equal(BigInt(5))
+        await bond.purchase(BigInt(1), signer.address);
+        await bond.purchase(BigInt(50), ethers.ZeroAddress)
 
-        await revertOperation(bond, bond.purchase(BigInt(bondConfig.totalBonds), ethers.ZeroAddress), OperationFailed, OperationCodes.ACTION_INVALID);
+        // REFERRAL FOR SIGNER 0
+        const signerReferrerData = await valutContract.getReferrerData(bond.target, signer.address);
+        expect(signerReferrerData.quantity).to.be.equal(BigInt(0));
+
+        // PURCHASE MORE THAN CAN BE
+        await revertOperation(bond, bond.purchase(bondConfig.totalBonds, ethers.ZeroAddress))
+
+        // REFERRAL LOGIC HERE
+        const referrer = generateWallet();
+        await bond.purchase(BigInt(1), referrer.address);
+        const referrerData = await valutContract.getReferrerData(bond.target, referrer.address);
+        expect(referrerData.quantity).to.be.equal(BigInt(1));
+
+        const lifecycle = await bond.lifecycle();
+        expect(lifecycle.purchased).to.be.equal(BigInt(52))
     })
 
     it("Redeem", async () => {
@@ -83,24 +93,45 @@ describe("Bond", () => {
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
         await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
+        await bond.purchase(BigInt(1), ethers.ZeroAddress)
 
         // INSUFFICIENT_PAYOUT
         const promiseI = bond.redeem([BigInt(0)], BigInt(1), false)
         await revertOperation(bond, promiseI, OperationFailed, OperationCodes.INSUFFICIENT_PAYOUT)
-        await token.transfer(bond.target, BigInt(4) * bondConfig.payoutAmount);
+        await token.transfer(bond.target, bondConfig.totalBonds * bondConfig.payoutAmount);
 
         // REDEEM_BEFORE_MATURITY
         const promiseR = bond.redeem([BigInt(0)], BigInt(1), false)
         await revertOperation(bond, promiseR, OperationFailed, OperationCodes.REDEEM_BEFORE_MATURITY)
 
-        // CAPITULATION_REDEEM
+        // CAPITULATION_REDEEM WITH LESS PAYOUT AS IT's NOT MATURE
         await bond.redeem([BigInt(3)], BigInt(1), true);
 
+        // MINE BLOCK TO MAKE BONDS MATURE
         await mineBlocks(bondConfig.maturityPeriodInBlocks);
+
+        // CAPITULATION_REDEEM ON MATURE BONDS
+        const capitulationCount = BigInt(1)
+        const capitulationTx = await bond.redeem([BigInt(6)], capitulationCount, true);
+        const txReceipt = await ethers.provider.getTransactionReceipt(capitulationTx.hash);
+
+        if (!txReceipt?.logs) throw Error("Missing Logs");
+
+        for (const log of txReceipt.logs) {
+            const decodedData = token.interface.parseLog({
+                topics: [...log.topics],
+                data: log.data
+            });
+            if (decodedData?.name === "Transfer") {
+                expect(decodedData.args.value).to.be.equal(capitulationCount * bondConfig.payoutAmount);
+            }
+        }
+
         await bond.redeem([BigInt(0)], BigInt(1), false);
 
         const lifecycle = await bond.lifecycle();
-        expect(lifecycle.redeemed).to.be.equal(BigInt(2));
+        expect(lifecycle.redeemed).to.be.equal(BigInt(3));
 
         //ACTION_INVALID
         const promiseA = bond.redeem([BigInt(1)], BigInt(2), false);

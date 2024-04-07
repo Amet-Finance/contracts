@@ -5,12 +5,25 @@ library Types {
     uint16 internal constant _PERCENTAGE_DECIMAL = 1000;
     string internal constant _BASE_URI = "https://storage.amet.finance/contracts/";
 
+    struct Bond {
+        string isin;
+        string name;
+        string symbol;
+        address currency;
+        uint256 denomination;
+        uint256 issueVolume;
+        uint256 couponRate;
+        uint256 issueDate;     // issue date in blocks
+        uint256 maturityDate;  // maturity date in blocks
+        uint256 issuePrice;
+        address payoutCurrency;
+        uint256 payoutAmount;
+    }
+    
     struct BondLifecycle {
-        uint40 totalBonds; // Total number of bonds issued
         uint40 purchased; // Number of bonds purchased
         uint40 redeemed; // Number of bonds redeemed
         uint40 uniqueBondIndex; // Unique identifier for the bond
-        uint40 maturityPeriodInBlocks; // Maturity period of the bond in blocks
         bool isSettled; // Indicates if the bond is settled (no further actions allowed)
     }
 

@@ -5,6 +5,7 @@ import {IVault} from "./interfaces/IVault.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
 import {Bond} from "./Bond.sol";
 import {Ownership} from "./libraries/helpers/Ownership.sol";
+import {Types} from "./libraries/Types.sol";
 
 /// @title Issuer Contract
 /// @notice Contract for issuing new Bond contracts, allowing management of bonds' lifecycle
@@ -32,17 +33,14 @@ contract Issuer is Ownership {
     /// to ensure the integrity and expected operation of the bond issuance and lifecycle management.
     ///
     /// @dev Emits a BondIssued event upon successful issuance
-    /// @param totalBonds The total number of bonds to issue
-    /// @param maturityInBlocks The maturity period of the bond in blocks
-    /// @param purchaseTokenAddress The address of the token used to purchase the bond
-    /// @param purchaseAmount The amount of the purchase token required to buy the bond
-    /// @param payoutTokenAddress The address of the token to be used for payouts
-    /// @param payoutAmount The amount of the payout token to be paid out per bond
-    function issue(uint40 totalBonds, uint40 maturityInBlocks, address purchaseTokenAddress, uint256 purchaseAmount, address payoutTokenAddress, uint256 payoutAmount) external payable {
+    /// @param _bond The Bond Struct
+    function issue(Types.Bond calldata _bond) external payable {
         if (isPaused) Errors.revertOperation(Errors.Code.CONTRACT_PAUSED);
 
-        Bond bond = new Bond(msg.sender, totalBonds, maturityInBlocks, purchaseTokenAddress, purchaseAmount, payoutTokenAddress, payoutAmount);
+        //uint40 totalBonds = uint40(_bond.issueVolume / _bond.denomination);
 
+        Bond bond = new Bond(msg.sender, _bond);
+ 
         address bondAddress = address(bond);
         vault.initializeBond{value: msg.value}(bondAddress);
         emit BondIssued(bondAddress);

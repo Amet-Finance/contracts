@@ -8,7 +8,7 @@ import {IVault} from "./interfaces/IVault.sol";
 import {Errors} from "./libraries/helpers/Errors.sol";
 import {Ownership} from "./libraries/helpers/Ownership.sol";
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {ERC7092} from "./ERC7092.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -25,47 +25,28 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 ///
 /// @dev Inherits from ERC1155 for token functionality and Ownable for ownership management
 /// @custom:security-contact hello@amet.finance, Twitter: @amet_finance
-contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
+contract Bond is ERC7092, Ownership, ReentrancyGuard, IBond {
     using SafeERC20 for IERC20;
 
     // Event declarations
     event SettleContract();
-    event DecreaseMaturityPeriod(uint40 maturityPeriodInBlocks);
-    event UpdateBondSupply(uint40 totalBonds);
+    event DecreaseMaturityPeriod(uint256 maturityPeriodInBlocks);
+    event UpdateBondSupply(uint256 totalBonds);
     event WithdrawExcessPayout(uint256 excessPayout);
 
     // State variable declarations
     IIssuer private immutable _issuerContract;
     Types.BondLifecycle public lifecycle;
-    IERC20 public immutable purchaseToken;
-    uint256 public immutable purchaseAmount;
-    IERC20 public immutable payoutToken;
-    uint256 public immutable payoutAmount;
     mapping(uint40 uniqueIndex => uint256 blockNumber) public purchaseBlocks;
 
     /// @notice Constructor to initialize the Bond contract
     /// @param issuer The address of the issuer
-    /// @param initialTotalBonds Total number of bonds at issuance
-    /// @param initialMaturityInBlocks Number of blocks until bond maturity
-    /// @param initialPurchaseTokenAddress Address of the token used for purchasing bonds
-    /// @param initialPurchaseAmount Amount of purchase token required per bond
-    /// @param initialPayoutTokenAddress Address of the token used for bond payout
-    /// @param initialPayoutAmount Amount of payout token distributed per bond
     constructor(
         address issuer,
-        uint40 initialTotalBonds,
-        uint40 initialMaturityInBlocks,
-        address initialPurchaseTokenAddress,
-        uint256 initialPurchaseAmount,
-        address initialPayoutTokenAddress,
-        uint256 initialPayoutAmount
-    ) ERC1155("") Ownership(issuer) {
+        Types.Bond memory _bond
+    ) ERC7092(_bond) Ownership(issuer) {
         _issuerContract = IIssuer(msg.sender);
-        lifecycle = Types.BondLifecycle(initialTotalBonds, 0, 0, 0, initialMaturityInBlocks, false);
-        purchaseToken = IERC20(initialPurchaseTokenAddress);
-        purchaseAmount = initialPurchaseAmount;
-        payoutToken = IERC20(initialPayoutTokenAddress);
-        payoutAmount = initialPayoutAmount;
+        lifecycle = Types.BondLifecycle(0, 0, 0, false);
     }
 
     /// @notice Allows investors to purchase bonds
@@ -73,25 +54,28 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @param quantity The number of bonds to purchase
     /// @param referrer The address of the referrer, if any
     function purchase(uint40 quantity, address referrer) external nonReentrant {
+
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
 
-        if (lifecycleTmp.purchased + quantity > lifecycleTmp.totalBonds) {
+        uint256 totalBonds = totalSupply();
+
+        if (lifecycleTmp.purchased + quantity > totalBonds) {
             Errors.revertOperation(Errors.Code.ACTION_INVALID);
         }
 
         IVault vault = _issuerContract.vault();
         uint8 purchaseRate = vault.getBondFeeDetails(address(this)).purchaseRate;
 
-        uint256 totalAmount = quantity * purchaseAmount;
+        uint256 totalAmount = quantity * bonds.issuePrice;
         uint256 purchaseFee = Math.mulDiv(totalAmount, purchaseRate, Types._PERCENTAGE_DECIMAL);
 
-        purchaseToken.safeTransferFrom(msg.sender, address(vault), purchaseFee);
-        purchaseToken.safeTransferFrom(msg.sender, owner(), totalAmount - purchaseFee);
+        IERC20(bonds.currency).safeTransferFrom(msg.sender, address(vault), purchaseFee);
+        IERC20(bonds.currency).safeTransferFrom(msg.sender, owner(), totalAmount - purchaseFee);
 
         unchecked {lifecycleTmp.purchased += quantity;}
         purchaseBlocks[lifecycleTmp.uniqueBondIndex] = block.number;
 
-        _mint(msg.sender, lifecycleTmp.uniqueBondIndex++, quantity, "");
+        _mint(msg.sender, quantity, lifecycleTmp.uniqueBondIndex++);
         vault.recordReferralPurchase(msg.sender, referrer, quantity);
     }
 
@@ -102,7 +86,8 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @param isCapitulation Indicates if the redemption is a capitulation (true) or regular redemption (false)
     function redeem(uint40[] calldata bondIndexes, uint40 quantity, bool isCapitulation) external nonReentrant {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
-        IERC20 payoutTokenTmp = payoutToken;
+        IERC20 payoutTokenTmp = IERC20(bonds.payoutCurrency);
+        uint256 payoutAmount = bonds.payoutAmount;
 
         uint8 earlyRedemptionRate = _issuerContract.vault().getBondFeeDetails(address(this)).earlyRedemptionRate;
 
@@ -120,19 +105,19 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
         for (uint40 i; i < bondIndexesLength; ) {
             uint40 bondIndex = bondIndexes[i];
             uint256 purchasedBlock = purchaseBlocks[bondIndex];
-            bool isMature = purchasedBlock + lifecycleTmp.maturityPeriodInBlocks <= block.number;
+            bool isMature = purchasedBlock + bonds.maturityDate <= block.number;
 
             if (!isMature && !isCapitulation) Errors.revertOperation(Errors.Code.REDEEM_BEFORE_MATURITY);
 
             // Dubious typecast invalid as balance max is uint40
-            uint40 balanceByIndex = uint40(balanceOf(msg.sender, bondIndex));
+            uint40 balanceByIndex = uint40(_balanceByPurchase[bondIndex][msg.sender]);
             uint40 burnCount = balanceByIndex >= quantity ? quantity : balanceByIndex;
 
-            _burn(msg.sender, bondIndex, burnCount);
+            _burn(msg.sender, burnCount, bondIndex);
             quantity -= burnCount;
 
             if (isCapitulation && !isMature) {
-                totalPayout -= _calculateCapitulationPayout(payoutAmountTmp, lifecycle.maturityPeriodInBlocks, burnCount, purchasedBlock, earlyRedemptionRate);
+                totalPayout -= _calculateCapitulationPayout(payoutAmountTmp, uint40(bonds.maturityDate), burnCount, purchasedBlock, earlyRedemptionRate);
             }
 
             if (quantity == 0) break;
@@ -168,10 +153,12 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @dev This function can only be called by the contract owner
     function settle() external onlyOwner {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
+        uint256 payoutAmount = bonds.payoutAmount;
+        uint256 totalBonds = totalSupply();
 
-        uint256 totalPayoutRequired = (lifecycleTmp.totalBonds - lifecycleTmp.redeemed) * payoutAmount;
+        uint256 totalPayoutRequired = (totalBonds - lifecycleTmp.redeemed) * payoutAmount;
 
-        if (totalPayoutRequired > payoutToken.balanceOf(address(this))) {
+        if (totalPayoutRequired > IERC20(bonds.payoutCurrency).balanceOf(address(this))) {
             Errors.revertOperation(Errors.Code.INSUFFICIENT_PAYOUT);
         }
 
@@ -183,14 +170,17 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @dev Can only be called by the contract owner
     /// @dev Reverts if the new total is less than the number of purchased bonds or if bond is settled and the new total is more than the current total
     /// @param totalBonds The new total number of bonds to be set
-    function updateBondSupply(uint40 totalBonds) external onlyOwner {
+    function updateBondSupply(uint256 totalBonds) external onlyOwner {
         Types.BondLifecycle storage lifecycleTmp = lifecycle;
+        uint256 _totalBonds = totalSupply();
 
-        if (lifecycleTmp.purchased > totalBonds || (lifecycleTmp.isSettled && totalBonds > lifecycleTmp.totalBonds)) {
+        if (lifecycleTmp.purchased > totalBonds || (lifecycleTmp.isSettled && totalBonds > _totalBonds)) {
             Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
         }
 
-        lifecycleTmp.totalBonds = totalBonds;
+        uint256 _denomination = bonds.denomination;
+
+        bonds.issueVolume = totalBonds * _denomination;
         emit UpdateBondSupply(totalBonds);
     }
 
@@ -199,10 +189,13 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @dev Reverts if there is no excess payout to withdraw
     function withdrawExcessPayout() external onlyOwner nonReentrant {
         Types.BondLifecycle memory lifecycleTmp = lifecycle;
-        IERC20 payoutTokenTmp = payoutToken;
+        IERC20 payoutTokenTmp = IERC20(bonds.payoutCurrency);
+        uint256 payoutAmount = bonds.payoutAmount;
+
+        uint256 totalBonds = totalSupply();
 
         // calculate for purchase but not redeemed bonds + potential purchases
-        uint256 totalPayout = (lifecycleTmp.totalBonds - lifecycleTmp.redeemed) * payoutAmount;
+        uint256 totalPayout = (totalBonds - lifecycleTmp.redeemed) * payoutAmount;
         uint256 currentBalance = payoutTokenTmp.balanceOf(address(this));
         if (currentBalance <= totalPayout) Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
 
@@ -217,13 +210,12 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @dev Emits a DecreaseMaturityPeriod event upon successful update
     /// @param maturityPeriodInBlocks The new maturity period in blocks
     /// @dev Reverts if the new maturity period is not less than the current one
-    function decreaseMaturityPeriod(uint40 maturityPeriodInBlocks) external onlyOwner {
-        Types.BondLifecycle storage lifecycleTmp = lifecycle;
-        if (maturityPeriodInBlocks >= lifecycleTmp.maturityPeriodInBlocks) {
+    function decreaseMaturityPeriod(uint256 maturityPeriodInBlocks) external onlyOwner {
+        if (maturityPeriodInBlocks >= bonds.maturityDate) {
             Errors.revertOperation(Errors.Code.ACTION_BLOCKED);
         }
 
-        lifecycleTmp.maturityPeriodInBlocks = maturityPeriodInBlocks;
+        bonds.maturityDate = maturityPeriodInBlocks;
         emit DecreaseMaturityPeriod(maturityPeriodInBlocks);
     }
 
@@ -231,14 +223,6 @@ contract Bond is ERC1155, Ownership, ReentrancyGuard, IBond {
     /// @return purchaseToken The ERC20 token used for bond purchases
     /// @return purchaseAmount The amount of the purchase token required to buy the bond
     function getPurchaseDetails() external view returns (IERC20, uint256) {
-        return (purchaseToken, purchaseAmount);
-    }
-
-    /// @notice Gets the URI for the ERC1155 tokens
-    /// @dev Overrides the ERC1155 uri method to concatenate the base URI, contract address, and a fixed file extension for gas efficiency
-    /// @param /* id */ The token ID (unused in this override)
-    /// @return The constructed token URI
-    function uri(uint256 /* id */) public view override returns (string memory) {
-        return string(abi.encodePacked(Types._BASE_URI, Strings.toHexString(uint160(address(this)), 20), "_80001.json"));
+        return (IERC20(bonds.currency), bonds.issuePrice);
     }
 }

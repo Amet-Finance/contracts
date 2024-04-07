@@ -4,7 +4,7 @@ import {AddressLike} from "ethers";
 import {expect} from "chai";
 import {Bond__factory, CustomToken__factory, Issuer__factory} from "../../../typechain-types";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import {BondConfig} from "./types";
+import {Bond} from "./types";
 
 function deployIssuer(signer?: HardhatEthersSigner) {
     return ethers.deployContract("Issuer", [], signer)
@@ -43,17 +43,12 @@ async function revertOperation(bond: any, fn: Promise<any>, customError?: string
     }
 }
 
-
-
-async function issueBond(issuerAddress: string, tokenAddress: string, bondConfig: BondConfig, deployer: HardhatEthersSigner) {
+async function issueBond(issuerAddress: string, bond: Bond, deployer: HardhatEthersSigner) {
     const issuer = Issuer__factory.connect(issuerAddress, deployer);
     const bondTransaction = await issuer.issue(
-        bondConfig.totalBonds,
-        bondConfig.maturityPeriodInBlocks,
-        tokenAddress,
-        bondConfig.purchaseAmount,
-        tokenAddress,
-        bondConfig.payoutAmount, {value: BondFeeConstants.initialIssuanceFee});
+        bond,
+        {value: BondFeeConstants.initialIssuanceFee}
+    );
     const txRecipient = await ethers.provider.getTransactionReceipt(bondTransaction.hash);
     if (!txRecipient?.logs) throw Error("Failed to deploy")
 

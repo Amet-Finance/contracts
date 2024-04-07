@@ -5,6 +5,21 @@ import {generateWallet} from "./utils/address";
 import {BondFeeConstants, OperationCodes, OperationFailed, OwnableUnauthorizedAccount} from "./utils/constants";
 
 describe("Issuer", () => {
+    const bond = {
+        isin: 'US9VL26IA9N0',
+        name: 'AMazon 2030',
+        symbol: 'AMZ30',
+        currency: generateWallet().address,
+        denomination: BigInt(100),
+        issueVolume: BigInt(1000),
+        couponRate: BigInt(200),
+        issueDate: BigInt(0),
+        maturityDate: BigInt(1715107584),
+        issuePrice: BigInt(10 * 1e18),
+        payoutCurrency: generateWallet().address,
+        payoutAmount: BigInt(15 * 1e18)
+    }
+
     it("Deploying", async () => {
         const contract = await deployIssuer()
         expect(ethers.isAddress(contract.target)).to.be.equal(true)
@@ -37,27 +52,20 @@ describe("Issuer", () => {
     })
 
     it("Issuing Bonds", async () => {
-        const contract = await deployIssuer()
+        const contract = await deployIssuer();
 
-        const totalBonds = BigInt(100)
-        const maturityInBlocks = BigInt(20);
-        const purchaseToken = generateWallet().address;
-        const purchaseAmount = BigInt(100)
-        const payoutToken = generateWallet().address
-        const payoutAmount = BigInt(150)
-
-        await expect(contract.issue(totalBonds, maturityInBlocks, purchaseToken, purchaseAmount, payoutToken, payoutAmount, {value: BondFeeConstants.initialIssuanceFee})).to.be.reverted;
+        await expect(contract.issue(bond, {value: BondFeeConstants.initialIssuanceFee})).to.be.reverted;
 
         const vault = await deployVault(contract.target)
         await contract.changeVault(vault.target);
 
         await contract.changePausedState(true);
-        await expect(contract.issue(totalBonds, maturityInBlocks, purchaseToken, purchaseAmount, payoutToken, payoutAmount, {value: BondFeeConstants.initialIssuanceFee})).to.be.reverted;
+        await expect(contract.issue(bond, {value: BondFeeConstants.initialIssuanceFee})).to.be.reverted;
         await contract.changePausedState(false);
 
-        await expect(contract.issue(totalBonds, maturityInBlocks, purchaseToken, purchaseAmount, payoutToken, payoutAmount, {value: BigInt(0)})).to.be.reverted;
+        await expect(contract.issue(bond, {value: BigInt(0)})).to.be.reverted;
 
-        await contract.issue(totalBonds, maturityInBlocks, purchaseToken, purchaseAmount, payoutToken, payoutAmount, {value: BondFeeConstants.initialIssuanceFee})
+        await contract.issue(bond, {value: BondFeeConstants.initialIssuanceFee})
     })
 
     it("Renounce Ownership", async () => {
